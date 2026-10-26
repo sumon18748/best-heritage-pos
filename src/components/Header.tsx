@@ -22,6 +22,8 @@ import {
   Phone,
   Mail,
   LogOut,
+  Clock,
+  Calendar,
 } from 'lucide-react';
 import { calculateStockAlertStatus } from '../utils/stockCalculations';
 import { ActiveTab } from '../types';
@@ -57,6 +59,30 @@ export const Header: React.FC = () => {
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Real-time live clock state (updates every second)
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedTime = currentDateTime.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+
+  const formattedDate = currentDateTime.toLocaleDateString('en-US', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 
   // Read Notifications Tracking (Persisted in localStorage)
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
@@ -309,32 +335,52 @@ export const Header: React.FC = () => {
           <span className="sm:hidden font-bold text-sm tracking-tight text-white font-serif whitespace-nowrap">BEST HERITAGE</span>
         </div>
 
-        {/* Center: Branch Selector */}
-        <div className="hidden md:flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700 min-w-0 flex-1 max-w-xs lg:max-w-sm xl:max-w-none xl:flex-none">
-          <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span className="text-xs text-slate-400 font-medium shrink-0">Branch:</span>
-          {isBranchRestricted ? (
-            <div className="flex items-center space-x-1.5 text-xs font-semibold text-amber-300 min-w-0">
-              <span className="truncate">{currentUser.branchName || 'Assigned Branch'}</span>
-              <span className="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-700/50 shrink-0">
-                Locked
-              </span>
+        {/* Center: Branch Selector & Live Clock Widget */}
+        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1 md:flex-none justify-center">
+          {/* Branch Selector */}
+          <div className="hidden md:flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700 min-w-0 max-w-xs lg:max-w-sm xl:max-w-none">
+            <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="text-xs text-slate-400 font-medium shrink-0">Branch:</span>
+            {isBranchRestricted ? (
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-amber-300 min-w-0">
+                <span className="truncate">{currentUser.branchName || 'Assigned Branch'}</span>
+                <span className="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-700/50 shrink-0">
+                  Locked
+                </span>
+              </div>
+            ) : (
+              <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                aria-label="Filter active branch"
+                className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer pr-2 min-w-0 w-full"
+              >
+                <option value="all" className="bg-slate-900 text-white">All Branches (Consolidated)</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                    {b.name} ({b.code})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Real-time Live Clock & Date Widget */}
+          <div className="flex items-center space-x-2 bg-slate-800/95 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm shrink-0 text-white font-mono">
+            <div className="hidden sm:flex items-center space-x-1.5 text-xs text-slate-300">
+              <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[11px] font-medium text-slate-300 whitespace-nowrap">{formattedDate}</span>
+              <span className="text-slate-600 font-bold ml-1">•</span>
             </div>
-          ) : (
-            <select
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              aria-label="Filter active branch"
-              className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer pr-2 min-w-0 w-full"
-            >
-              <option value="all" className="bg-slate-900 text-white">All Branches (Consolidated)</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id} className="bg-slate-900 text-white">
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
-          )}
+            <div className="flex items-center space-x-1.5 text-xs">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-xs font-bold text-emerald-300 tracking-wider whitespace-nowrap">{formattedTime}</span>
+            </div>
+          </div>
         </div>
 
         {/* Right: New Sale (POS), Notifications & User Profile */}
@@ -542,16 +588,6 @@ export const Header: React.FC = () => {
                 <div className="text-[10px] text-slate-400 capitalize">{currentUser.role.replace('_', ' ')}</div>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            {/* Quick Logout Button */}
-            <button
-              onClick={logout}
-              title="Sign Out"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
-              aria-label="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
             </button>
 
             {userDropdownOpen && (
