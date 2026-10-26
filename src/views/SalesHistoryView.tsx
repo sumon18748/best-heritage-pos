@@ -18,6 +18,7 @@ import {
   Download,
   ShieldAlert,
   Trash2,
+  Pencil,
 } from 'lucide-react';
 import { formatCurrencyBDT } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
@@ -30,6 +31,7 @@ export const SalesHistoryView: React.FC = () => {
     branches,
     cancelSale,
     deleteSale,
+    updateSale,
     currentUser,
     selectedBranchId,
     setActiveTab,
@@ -57,6 +59,18 @@ export const SalesHistoryView: React.FC = () => {
   // Delete modal (Super Admin only)
   const [saleToDelete, setSaleToDelete] = useState<SaleTransaction | null>(null);
   const [deleteFeedback, setDeleteFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Edit modal (Super Admin only)
+  const [saleToEdit, setSaleToEdit] = useState<SaleTransaction | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<'Cash' | 'bKash' | 'Nagad' | 'Bank Transfer' | 'Card'>('Cash');
+  const [editDate, setEditDate] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editDiscountType, setEditDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [editDiscountValue, setEditDiscountValue] = useState<number>(0);
+  const [editItems, setEditItems] = useState<{ productId: string; productName: string; sku: string; quantity: number; sellingPrice: number }[]>([]);
+  const [editFeedback, setEditFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   const effectiveBranchId = isBranchLocked ? currentUser.branchId! : filterBranchId;
 
@@ -205,6 +219,47 @@ export const SalesHistoryView: React.FC = () => {
       setTimeout(() => {
         setSaleToDelete(null);
         setDeleteFeedback(null);
+      }, 1500);
+    }
+  };
+
+  const openEditSaleModal = (sale: SaleTransaction) => {
+    setSaleToEdit(sale);
+    setEditCustomerName(sale.customerName);
+    setEditCustomerPhone(sale.customerPhone || '');
+    setEditPaymentMethod(sale.paymentMethod);
+    setEditDate(sale.date);
+    setEditNotes(sale.notes || '');
+    setEditDiscountType(sale.discountType || 'fixed');
+    setEditDiscountValue(sale.discountValue || 0);
+    setEditItems(sale.items.map((it) => ({
+      productId: it.productId,
+      productName: it.productName,
+      sku: it.sku,
+      quantity: it.quantity,
+      sellingPrice: it.sellingPrice,
+    })));
+    setEditFeedback(null);
+  };
+
+  const handleSaveEditSale = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!saleToEdit) return;
+    const res = updateSale(saleToEdit.id, {
+      customerName: editCustomerName,
+      customerPhone: editCustomerPhone,
+      paymentMethod: editPaymentMethod,
+      date: editDate,
+      notes: editNotes,
+      discountType: editDiscountType,
+      discountValue: editDiscountValue,
+      items: editItems,
+    });
+    setEditFeedback(res);
+    if (res.success) {
+      setTimeout(() => {
+        setSaleToEdit(null);
+        setEditFeedback(null);
       }, 1500);
     }
   };
@@ -481,18 +536,27 @@ export const SalesHistoryView: React.FC = () => {
                         </button>
                       )}
 
-                      {/* Permanent Delete — Super Admin Only */}
+                      {/* Edit & Permanent Delete — Super Admin Only */}
                       {isSuperAdmin && (
-                        <button
-                          onClick={() => {
-                            setSaleToDelete(sale);
-                            setDeleteFeedback(null);
-                          }}
-                          title="Permanently Delete Invoice (Super Admin Only)"
-                          className="p-1.5 text-slate-300 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => openEditSaleModal(sale)}
+                            title="Edit Invoice (Super Admin Only)"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSaleToDelete(sale);
+                              setDeleteFeedback(null);
+                            }}
+                            title="Permanently Delete Invoice (Super Admin Only)"
+                            className="p-1.5 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -656,6 +720,206 @@ export const SalesHistoryView: React.FC = () => {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Sale Invoice Modal — Super Admin Only */}
+      {saleToEdit && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-200 my-8">
+            <button
+              onClick={() => setSaleToEdit(null)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-2.5 text-blue-600 mb-4">
+              <div className="p-2 bg-blue-50 rounded-xl">
+                <Pencil className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Edit Sale Invoice: {saleToEdit.invoiceNo}
+                </h3>
+                <p className="text-[11px] text-blue-600 font-semibold">সুপার অ্যাডমিন অনুমতি (Super Admin Edit)</p>
+              </div>
+            </div>
+
+            {editFeedback && (
+              <div
+                className={`mb-4 p-3 rounded-xl text-xs font-semibold ${
+                  editFeedback.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {editFeedback.message}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditSale} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Customer Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editCustomerName}
+                    onChange={(e) => setEditCustomerName(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Customer Phone</label>
+                  <input
+                    type="text"
+                    value={editCustomerPhone}
+                    onChange={(e) => setEditCustomerPhone(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Method</label>
+                  <select
+                    value={editPaymentMethod}
+                    onChange={(e) => setEditPaymentMethod(e.target.value as any)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="bKash">bKash</option>
+                    <option value="Nagad">Nagad</option>
+                    <option value="Card">Card</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Invoice Items & Prices</label>
+                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-[11px]">
+                      <tr>
+                        <th className="py-2 px-3">Item</th>
+                        <th className="py-2 px-3 text-center w-24">Qty</th>
+                        <th className="py-2 px-3 text-right w-28">Price (Tk)</th>
+                        <th className="py-2 px-3 text-right w-28">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {editItems.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="py-2 px-3">
+                            <span className="font-semibold text-slate-900 block truncate">{item.productName}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{item.sku}</span>
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const newQty = Math.max(1, parseInt(e.target.value) || 1);
+                                setEditItems((prev) =>
+                                  prev.map((it, i) => (i === idx ? { ...it, quantity: newQty } : it))
+                                );
+                              }}
+                              className="w-full text-center p-1 rounded border border-slate-200 text-xs font-bold focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="00"
+                              value={item.sellingPrice === 0 ? '' : item.sellingPrice}
+                              onChange={(e) => {
+                                const newPrice = Math.max(0, parseFloat(e.target.value) || 0);
+                                setEditItems((prev) =>
+                                  prev.map((it, i) => (i === idx ? { ...it, sellingPrice: newPrice } : it))
+                                );
+                              }}
+                              className="w-full text-right p-1 rounded border border-slate-200 text-xs font-bold focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-right font-bold text-slate-900 font-mono">
+                            {formatCurrencyBDT(item.quantity * item.sellingPrice)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Discount */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Discount Type</label>
+                  <select
+                    value={editDiscountType}
+                    onChange={(e) => setEditDiscountType(e.target.value as any)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="fixed">Fixed (Tk)</option>
+                    <option value="percentage">Percentage (%)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Discount Value</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="00"
+                    value={editDiscountValue === 0 ? '' : editDiscountValue}
+                    onChange={(e) => setEditDiscountValue(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSaleToEdit(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer flex items-center space-x-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Update Invoice</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { StockOutReason, MainCategoryName } from '../types';
+import { StockOutReason, MainCategoryName, StockOutTransaction } from '../types';
 import {
   ArrowUpFromLine,
   Plus,
@@ -16,6 +16,8 @@ import {
   Sparkles,
   Apple,
   Flame,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { canStockOut } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
@@ -28,14 +30,31 @@ export const StockOutView: React.FC = () => {
     branchStocks,
     stockOuts,
     createStockOut,
+    updateStockOut,
+    deleteStockOut,
     currentUser,
     selectedBranchId,
     selectedCategoryName,
   } = useApp();
 
+  const isSuperAdmin = currentUser.role === 'super_admin';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>(selectedCategoryName || 'all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Super Admin Delete state
+  const [stockOutToDelete, setStockOutToDelete] = useState<StockOutTransaction | null>(null);
+  const [deleteNotice, setDeleteNotice] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Super Admin Edit state
+  const [stockOutToEdit, setStockOutToEdit] = useState<StockOutTransaction | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editReason, setEditReason] = useState<StockOutReason>('Damaged Product');
+  const [editReferenceDoc, setEditReferenceDoc] = useState('');
+  const [editRemarks, setEditRemarks] = useState('');
+  const [editQuantity, setEditQuantity] = useState('1');
+  const [editNotice, setEditNotice] = useState<{ success: boolean; message: string } | null>(null);
 
   // Form state
   const todayStr = new Date().toISOString().split('T')[0];
@@ -134,6 +153,52 @@ export const StockOutView: React.FC = () => {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmDeleteStockOut = () => {
+    if (!stockOutToDelete) return;
+    const res = deleteStockOut(stockOutToDelete.id);
+    setDeleteNotice(res);
+    if (res.success) {
+      setTimeout(() => {
+        setStockOutToDelete(null);
+        setDeleteNotice(null);
+      }, 1500);
+    }
+  };
+
+  const openEditStockOutModal = (tx: StockOutTransaction) => {
+    setStockOutToEdit(tx);
+    setEditDate(tx.date);
+    setEditReason(tx.reason);
+    setEditReferenceDoc(tx.referenceDocNo || '');
+    setEditRemarks(tx.remarks || '');
+    setEditQuantity(String(tx.totalQuantity || 1));
+    setEditNotice(null);
+  };
+
+  const handleSaveEditStockOut = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stockOutToEdit) return;
+    const qty = Math.max(1, parseInt(editQuantity) || 1);
+    const updatedItems = stockOutToEdit.items.map((it) => ({
+      productId: it.productId,
+      quantity: qty,
+    }));
+    const res = updateStockOut(stockOutToEdit.id, {
+      date: editDate,
+      reason: editReason,
+      referenceDocNo: editReferenceDoc,
+      remarks: editRemarks,
+      items: updatedItems,
+    });
+    setEditNotice(res);
+    if (res.success) {
+      setTimeout(() => {
+        setStockOutToEdit(null);
+        setEditNotice(null);
+      }, 1500);
     }
   };
 
@@ -383,6 +448,7 @@ export const StockOutView: React.FC = () => {
                 <th className="py-3 px-4 text-center">Quantity Deducted</th>
                 <th className="py-3 px-4">Doc / Remarks</th>
                 <th className="py-3 px-4 text-right">Authorized By</th>
+                {isSuperAdmin && <th className="py-3 px-4 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -428,12 +494,35 @@ export const StockOutView: React.FC = () => {
                   <td className="py-3 px-4 text-right text-[11px] text-slate-500">
                     {tx.createdByName}
                   </td>
+                  {isSuperAdmin && (
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center space-x-1.5">
+                        <button
+                          onClick={() => openEditStockOutModal(tx)}
+                          title="Edit Stock Out (Super Admin Only)"
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setStockOutToDelete(tx);
+                            setDeleteNotice(null);
+                          }}
+                          title="Delete Stock Out (Super Admin Only)"
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
 
               {filteredStockOuts.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
+                  <td colSpan={isSuperAdmin ? 9 : 8} className="py-12 text-center text-slate-400 text-xs">
                     No stock out records found matching current category.
                   </td>
                 </tr>
@@ -650,6 +739,204 @@ export const StockOutView: React.FC = () => {
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white shadow-sm"
                 >
                   Confirm Stock Out
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Stock Out Modal — Super Admin Only */}
+      {stockOutToDelete && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl relative border-2 border-red-200">
+            <button
+              onClick={() => setStockOutToDelete(null)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-base font-bold text-red-700 flex items-center space-x-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              <span>Permanently Delete Stock Out</span>
+            </h3>
+
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium">
+              ⚠️ এই স্টক-আউট রেকর্ডটি মুছে ফেলা হলে কর্তনকৃত {stockOutToDelete.totalQuantity} টি আইটেম ব্রাঞ্চ ইনভেন্টরিতে স্বয়ংক্রিয়ভাবে আবার যুক্ত হয়ে যাবে (Stock-In হবে)।
+            </div>
+
+            <div className="mt-3 text-xs text-slate-600 space-y-1">
+              <div className="flex justify-between">
+                <span className="font-semibold">Reference No:</span>
+                <span className="font-mono font-bold text-slate-900">{stockOutToDelete.referenceNo}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Branch:</span>
+                <span>{stockOutToDelete.branchName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Reason:</span>
+                <span className="font-semibold text-amber-700">{stockOutToDelete.reason}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Deducted Product:</span>
+                <span className="font-medium text-slate-800">{stockOutToDelete.items[0]?.productName || 'Product'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Quantity Restored:</span>
+                <span className="font-bold text-emerald-700">+{stockOutToDelete.totalQuantity} units</span>
+              </div>
+            </div>
+
+            {deleteNotice && (
+              <div
+                className={`mt-3 p-3 rounded-lg text-xs font-semibold ${
+                  deleteNotice.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {deleteNotice.message}
+              </div>
+            )}
+
+            {!deleteNotice && (
+              <div className="flex justify-end space-x-2 pt-4 mt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStockOutToDelete(null)}
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                >
+                  বাতিল করুন
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteStockOut}
+                  className="px-3.5 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>হ্যাঁ, ডিলিট ও স্টক রিস্টোর (Stock-In) করুন</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Stock Out Modal — Super Admin Only */}
+      {stockOutToEdit && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 my-8">
+            <button
+              onClick={() => setStockOutToEdit(null)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-2.5 text-blue-600 mb-4">
+              <div className="p-2 bg-blue-50 rounded-xl">
+                <Pencil className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Edit Stock Out: {stockOutToEdit.referenceNo}
+                </h3>
+                <p className="text-[11px] text-blue-600 font-semibold">সুপার অ্যাডমিন অনুমতি (Super Admin Edit)</p>
+              </div>
+            </div>
+
+            {editNotice && (
+              <div
+                className={`mb-4 p-3 rounded-xl text-xs font-semibold ${
+                  editNotice.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {editNotice.message}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditStockOut} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Reason</label>
+                  <select
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value as StockOutReason)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="Damaged Product">Damaged Product</option>
+                    <option value="Internal Use">Internal Use / Sampling</option>
+                    <option value="Lost Product">Lost / Missing</option>
+                    <option value="Authorized Adjustment">Authorized Adjustment</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Product</label>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                  <span className="font-bold text-slate-900 block">{stockOutToEdit.items[0]?.productName}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">SKU: {stockOutToEdit.items[0]?.sku} • Branch: {stockOutToEdit.branchName}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity Deducted *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Ref Document #</label>
+                  <input
+                    type="text"
+                    value={editReferenceDoc}
+                    onChange={(e) => setEditReferenceDoc(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Remarks / Quality Notes</label>
+                <textarea
+                  rows={2}
+                  value={editRemarks}
+                  onChange={(e) => setEditRemarks(e.target.value)}
+                  className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStockOutToEdit(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer flex items-center space-x-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Update Stock Out</span>
                 </button>
               </div>
             </form>

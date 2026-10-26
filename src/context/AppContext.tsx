@@ -53,7 +53,9 @@ import {
   syncProductDelete,
   syncBranchStockUpsert,
   syncStockInUpsert,
+  syncStockInDelete,
   syncStockOutUpsert,
+  syncStockOutDelete,
   syncSaleUpsert,
   syncSaleDelete,
   syncTransferUpsert,
@@ -134,6 +136,14 @@ interface AppContextType {
     remarks?: string;
     items: { productId: string; quantity: number; purchasePrice: number }[];
   }) => { success: boolean; message: string; transaction?: StockInTransaction };
+  updateStockIn: (stockInId: string, data: {
+    date?: string;
+    supplierName?: string;
+    supplierInvoiceNo?: string;
+    remarks?: string;
+    items?: { productId: string; quantity: number; purchasePrice: number }[];
+  }) => { success: boolean; message: string };
+  deleteStockIn: (stockInId: string) => { success: boolean; message: string };
 
   createStockOut: (data: {
     date: string;
@@ -143,6 +153,14 @@ interface AppContextType {
     remarks?: string;
     items: { productId: string; quantity: number }[];
   }) => { success: boolean; message: string; transaction?: StockOutTransaction };
+  updateStockOut: (stockOutId: string, data: {
+    date?: string;
+    reason?: StockOutReason;
+    referenceDocNo?: string;
+    remarks?: string;
+    items?: { productId: string; quantity: number }[];
+  }) => { success: boolean; message: string };
+  deleteStockOut: (stockOutId: string) => { success: boolean; message: string };
 
   createSale: (data: {
     date: string;
@@ -162,6 +180,24 @@ interface AppContextType {
       decantMlAmount?: number;
     }[];
   }) => { success: boolean; message: string; sale?: SaleTransaction };
+
+  updateSale: (saleId: string, data: {
+    customerName?: string;
+    customerPhone?: string;
+    paymentMethod?: PaymentMethod;
+    date?: string;
+    notes?: string;
+    discountType?: DiscountType;
+    discountValue?: number;
+    items?: {
+      productId: string;
+      quantity: number;
+      sellingPrice: number;
+      isDecant?: boolean;
+      decantVariantName?: string;
+      decantMlAmount?: number;
+    }[];
+  }) => { success: boolean; message: string };
 
   cancelSale: (saleId: string, reason: string) => { success: boolean; message: string };
   deleteSale: (saleId: string) => { success: boolean; message: string };
@@ -1338,6 +1374,195 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Stock In recorded successfully. Ref: ${refNo}`, transaction: newTx };
   };
 
+  // Super Admin: Update Stock In
+  const updateStockIn = (stockInId: string, data: {
+    date?: string;
+    supplierName?: string;
+    supplierInvoiceNo?: string;
+    remarks?: string;
+    items?: { productId: string; quantity: number; purchasePrice: number }[];
+  }) => {
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-ইন এডিট করতে পারবেন।' };
+    }
+
+    const tx = stockIns.find((t) => t.id === stockInId);
+    if (!tx) return { success: false, message: 'Stock In transaction not found.' };
+
+    const changedStocks: BranchProductStock[] = [];
+    const movementsToAdd: StockMovement[] = [];
+
+    let updatedItems = tx.items;
+    let totalQuantity = tx.totalQuantity;
+    let totalPurchaseCost = tx.totalPurchaseCost;
+
+    if (data.items && data.items.length > 0) {
+      const oldItemMap = new Map<string, number>();
+      tx.items.forEach((it) => oldItemMap.set(it.productId, (oldItemMap.get(it.productId) || 0) + it.quantity));
+
+      const newItemMap = new Map<string, number>();
+      data.items.forEach((it) => newItemMap.set(it.productId, (newItemMap.get(it.productId) || 0) + it.quantity));
+
+      const allProductIds = new Set([...oldItemMap.keys(), ...newItemMap.keys()]);
+
+      for (const prodId of allProductIds) {
+        const oldQty = oldItemMap.get(prodId) || 0;
+        const newQty = newItemMap.get(prodId) || 0;
+        const diff = newQty - oldQty;
+
+        if (diff !== 0) {
+          const current = branchStocks.find((s) => s.branchId === tx.branchId && s.productId === prodId);
+          const prod = products.find((p) => p.id === prodId);
+          if (current) {
+            const newCurrentStock = current.currentStock + diff;
+            const updatedEntry: BranchProductStock = {
+              ...current,
+              stockIn: current.stockIn + diff,
+              currentStock: newCurrentStock,
+              lastUpdated: new Date().toLocaleString(),
+            };
+            changedStocks.push(updatedEntry);
+
+            movementsToAdd.push({
+              id: `mov_edit_sin_${Date.now()}_${prodId}`,
+              timestamp: new Date().toLocaleString(),
+              date: data.date || tx.date,
+              branchId: tx.branchId,
+              branchName: tx.branchName,
+              productId: prodId,
+              productName: prod?.name || 'Product',
+              sku: prod?.sku || 'SKU',
+              type: diff > 0 ? 'stock_in' : 'stock_out',
+              quantityChange: diff,
+              balanceAfter: newCurrentStock,
+              referenceNo: tx.referenceNo,
+              notes: `Super Admin Stock-In Edit: Adjusted by ${diff > 0 ? `+${diff}` : diff} units.`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+            });
+          }
+        }
+      }
+
+      totalQuantity = 0;
+      totalPurchaseCost = 0;
+      updatedItems = data.items.map((it, idx) => {
+        const prod = products.find((p) => p.id === it.productId);
+        const itemCost = Number((it.quantity * it.purchasePrice).toFixed(2));
+        totalQuantity += it.quantity;
+        totalPurchaseCost += itemCost;
+        return {
+          id: tx.items[idx]?.id || `sii_${Date.now()}_${idx}`,
+          productId: it.productId,
+          productName: prod?.name || 'Product',
+          sku: prod?.sku || 'SKU',
+          categoryName: prod?.categoryName || 'Cosmetic Products',
+          quantity: it.quantity,
+          purchasePrice: it.purchasePrice,
+          totalCost: itemCost,
+        };
+      });
+    }
+
+    const updatedTx: StockInTransaction = {
+      ...tx,
+      date: data.date || tx.date,
+      supplierName: data.supplierName !== undefined ? data.supplierName : tx.supplierName,
+      supplierInvoiceNo: data.supplierInvoiceNo !== undefined ? data.supplierInvoiceNo : tx.supplierInvoiceNo,
+      remarks: data.remarks !== undefined ? data.remarks : tx.remarks,
+      items: updatedItems,
+      totalQuantity,
+      totalPurchaseCost: Number(totalPurchaseCost.toFixed(2)),
+    };
+
+    setStockIns((prev) => prev.map((t) => (t.id === stockInId ? updatedTx : t)));
+
+    if (changedStocks.length > 0) {
+      setBranchStocks((prev) =>
+        prev.map((s) => {
+          const m = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+          return m ? m : s;
+        })
+      );
+      changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    }
+
+    if (movementsToAdd.length > 0) {
+      setStockMovements((prev) => [...movementsToAdd, ...prev]);
+      movementsToAdd.forEach((m) => syncMovementInsert(m));
+    }
+
+    syncStockInUpsert(updatedTx);
+
+    return { success: true, message: `Stock In "${tx.referenceNo}" updated successfully.` };
+  };
+
+  // Super Admin: Delete Stock In (Reverses added stock)
+  const deleteStockIn = (stockInId: string) => {
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-ইন ডিলিট করতে পারবেন।' };
+    }
+
+    const tx = stockIns.find((t) => t.id === stockInId);
+    if (!tx) return { success: false, message: 'Stock In transaction not found.' };
+
+    const changedStocks: BranchProductStock[] = [];
+    const movementsToAdd: StockMovement[] = [];
+
+    for (const item of tx.items) {
+      const current = branchStocks.find((s) => s.branchId === tx.branchId && s.productId === item.productId);
+      const prod = products.find((p) => p.id === item.productId);
+      if (current) {
+        const newCurrentStock = current.currentStock - item.quantity;
+        const updatedEntry: BranchProductStock = {
+          ...current,
+          stockIn: Math.max(0, current.stockIn - item.quantity),
+          currentStock: newCurrentStock,
+          lastUpdated: new Date().toLocaleString(),
+        };
+        changedStocks.push(updatedEntry);
+
+        movementsToAdd.push({
+          id: `mov_del_sin_${Date.now()}_${item.productId}`,
+          timestamp: new Date().toLocaleString(),
+          date: new Date().toISOString().split('T')[0],
+          branchId: tx.branchId,
+          branchName: tx.branchName,
+          productId: item.productId,
+          productName: prod?.name || item.productName,
+          sku: prod?.sku || item.sku,
+          type: 'stock_out',
+          quantityChange: -item.quantity,
+          balanceAfter: newCurrentStock,
+          referenceNo: tx.referenceNo,
+          notes: `Super Admin Stock-In Deletion: Inward stock reversed (-${item.quantity} units).`,
+          userId: currentUser.id,
+          userName: currentUser.name,
+        });
+      }
+    }
+
+    if (changedStocks.length > 0) {
+      setBranchStocks((prev) =>
+        prev.map((s) => {
+          const m = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+          return m ? m : s;
+        })
+      );
+      changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    }
+
+    if (movementsToAdd.length > 0) {
+      setStockMovements((prev) => [...movementsToAdd, ...prev]);
+      movementsToAdd.forEach((m) => syncMovementInsert(m));
+    }
+
+    setStockIns((prev) => prev.filter((t) => t.id !== stockInId));
+    syncStockInDelete(stockInId);
+
+    return { success: true, message: `Stock In "${tx.referenceNo}" permanently deleted and inventory reversed.` };
+  };
+
   // Stock Out (With validation against available stock)
   const createStockOut = (data: {
     date: string;
@@ -1457,6 +1682,188 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     movementsToAdd.forEach((m) => syncMovementInsert(m));
 
     return { success: true, message: `Stock Out completed successfully. Ref: ${refNo}`, transaction: newTx };
+  };
+
+  // Super Admin: Update Stock Out
+  const updateStockOut = (stockOutId: string, data: {
+    date?: string;
+    reason?: StockOutReason;
+    referenceDocNo?: string;
+    remarks?: string;
+    items?: { productId: string; quantity: number }[];
+  }) => {
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-আউট এডিট করতে পারবেন।' };
+    }
+
+    const tx = stockOuts.find((t) => t.id === stockOutId);
+    if (!tx) return { success: false, message: 'Stock Out transaction not found.' };
+
+    const changedStocks: BranchProductStock[] = [];
+    const movementsToAdd: StockMovement[] = [];
+
+    let updatedItems = tx.items;
+    let totalQuantity = tx.totalQuantity;
+
+    if (data.items && data.items.length > 0) {
+      const oldItemMap = new Map<string, number>();
+      tx.items.forEach((it) => oldItemMap.set(it.productId, (oldItemMap.get(it.productId) || 0) + it.quantity));
+
+      const newItemMap = new Map<string, number>();
+      data.items.forEach((it) => newItemMap.set(it.productId, (newItemMap.get(it.productId) || 0) + it.quantity));
+
+      const allProductIds = new Set([...oldItemMap.keys(), ...newItemMap.keys()]);
+
+      for (const prodId of allProductIds) {
+        const oldQty = oldItemMap.get(prodId) || 0;
+        const newQty = newItemMap.get(prodId) || 0;
+        const diff = newQty - oldQty; // >0: more deducted, <0: less deducted (stock restored)
+
+        if (diff !== 0) {
+          const current = branchStocks.find((s) => s.branchId === tx.branchId && s.productId === prodId);
+          const prod = products.find((p) => p.id === prodId);
+          if (current) {
+            const newCurrentStock = current.currentStock - diff;
+            const updatedEntry: BranchProductStock = {
+              ...current,
+              stockOut: Math.max(0, current.stockOut + diff),
+              currentStock: newCurrentStock,
+              lastUpdated: new Date().toLocaleString(),
+            };
+            changedStocks.push(updatedEntry);
+
+            movementsToAdd.push({
+              id: `mov_edit_sout_${Date.now()}_${prodId}`,
+              timestamp: new Date().toLocaleString(),
+              date: data.date || tx.date,
+              branchId: tx.branchId,
+              branchName: tx.branchName,
+              productId: prodId,
+              productName: prod?.name || 'Product',
+              sku: prod?.sku || 'SKU',
+              type: diff > 0 ? 'stock_out' : 'stock_in',
+              quantityChange: -diff,
+              balanceAfter: newCurrentStock,
+              referenceNo: tx.referenceNo,
+              notes: `Super Admin Stock-Out Edit: Adjusted by ${diff > 0 ? `-${diff}` : `+${Math.abs(diff)}`} units.`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+            });
+          }
+        }
+      }
+
+      totalQuantity = 0;
+      updatedItems = data.items.map((it, idx) => {
+        const prod = products.find((p) => p.id === it.productId);
+        totalQuantity += it.quantity;
+        return {
+          id: tx.items[idx]?.id || `soi_${Date.now()}_${idx}`,
+          productId: it.productId,
+          productName: prod?.name || 'Product',
+          sku: prod?.sku || 'SKU',
+          categoryName: prod?.categoryName || 'Cosmetic Products',
+          quantity: it.quantity,
+        };
+      });
+    }
+
+    const updatedTx: StockOutTransaction = {
+      ...tx,
+      date: data.date || tx.date,
+      reason: data.reason || tx.reason,
+      referenceDocNo: data.referenceDocNo !== undefined ? data.referenceDocNo : tx.referenceDocNo,
+      remarks: data.remarks !== undefined ? data.remarks : tx.remarks,
+      items: updatedItems,
+      totalQuantity,
+    };
+
+    setStockOuts((prev) => prev.map((t) => (t.id === stockOutId ? updatedTx : t)));
+
+    if (changedStocks.length > 0) {
+      setBranchStocks((prev) =>
+        prev.map((s) => {
+          const m = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+          return m ? m : s;
+        })
+      );
+      changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    }
+
+    if (movementsToAdd.length > 0) {
+      setStockMovements((prev) => [...movementsToAdd, ...prev]);
+      movementsToAdd.forEach((m) => syncMovementInsert(m));
+    }
+
+    syncStockOutUpsert(updatedTx);
+
+    return { success: true, message: `Stock Out "${tx.referenceNo}" updated successfully.` };
+  };
+
+  // Super Admin: Delete Stock Out (Restores deducted stock)
+  const deleteStockOut = (stockOutId: string) => {
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-আউট ডিলিট করতে পারবেন।' };
+    }
+
+    const tx = stockOuts.find((t) => t.id === stockOutId);
+    if (!tx) return { success: false, message: 'Stock Out transaction not found.' };
+
+    const changedStocks: BranchProductStock[] = [];
+    const movementsToAdd: StockMovement[] = [];
+
+    for (const item of tx.items) {
+      const current = branchStocks.find((s) => s.branchId === tx.branchId && s.productId === item.productId);
+      const prod = products.find((p) => p.id === item.productId);
+      if (current) {
+        const newCurrentStock = current.currentStock + item.quantity;
+        const updatedEntry: BranchProductStock = {
+          ...current,
+          stockOut: Math.max(0, current.stockOut - item.quantity),
+          currentStock: newCurrentStock,
+          lastUpdated: new Date().toLocaleString(),
+        };
+        changedStocks.push(updatedEntry);
+
+        movementsToAdd.push({
+          id: `mov_del_sout_${Date.now()}_${item.productId}`,
+          timestamp: new Date().toLocaleString(),
+          date: new Date().toISOString().split('T')[0],
+          branchId: tx.branchId,
+          branchName: tx.branchName,
+          productId: item.productId,
+          productName: prod?.name || item.productName,
+          sku: prod?.sku || item.sku,
+          type: 'stock_in',
+          quantityChange: item.quantity,
+          balanceAfter: newCurrentStock,
+          referenceNo: tx.referenceNo,
+          notes: `Super Admin Stock-Out Deletion: Restored ${item.quantity} units (Stock-In).`,
+          userId: currentUser.id,
+          userName: currentUser.name,
+        });
+      }
+    }
+
+    if (changedStocks.length > 0) {
+      setBranchStocks((prev) =>
+        prev.map((s) => {
+          const m = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+          return m ? m : s;
+        })
+      );
+      changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    }
+
+    if (movementsToAdd.length > 0) {
+      setStockMovements((prev) => [...movementsToAdd, ...prev]);
+      movementsToAdd.forEach((m) => syncMovementInsert(m));
+    }
+
+    setStockOuts((prev) => prev.filter((t) => t.id !== stockOutId));
+    syncStockOutDelete(stockOutId);
+
+    return { success: true, message: `Stock Out "${tx.referenceNo}" permanently deleted and stock restored (Stock-In).` };
   };
 
   // Sales Entry
@@ -1814,7 +2221,168 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Sale ${sale.invoiceNo} cancelled. Stock restored to ${sale.branchName}.` };
   };
 
-  // Permanently Delete Sale Invoice (Super Admin Only)
+  // Super Admin: Update Sale Invoice
+  const updateSale = (saleId: string, data: {
+    customerName?: string;
+    customerPhone?: string;
+    paymentMethod?: PaymentMethod;
+    date?: string;
+    notes?: string;
+    discountType?: DiscountType;
+    discountValue?: number;
+    items?: {
+      productId: string;
+      quantity: number;
+      sellingPrice: number;
+      isDecant?: boolean;
+      decantVariantName?: string;
+      decantMlAmount?: number;
+    }[];
+  }) => {
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার সেল ইনভয়েস এডিট করতে পারবেন।' };
+    }
+
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) return { success: false, message: 'Sale invoice not found.' };
+
+    const changedStocks: BranchProductStock[] = [];
+    const movementsToAdd: StockMovement[] = [];
+
+    let updatedSaleItems = sale.items;
+    let totalQuantitySold = sale.totalQuantitySold;
+
+    if (data.items && data.items.length > 0 && sale.status === 'completed') {
+      const oldItemMap = new Map<string, number>();
+      sale.items.forEach((it) => oldItemMap.set(it.productId, (oldItemMap.get(it.productId) || 0) + it.quantity));
+
+      const newItemMap = new Map<string, number>();
+      data.items.forEach((it) => newItemMap.set(it.productId, (newItemMap.get(it.productId) || 0) + it.quantity));
+
+      const allProductIds = new Set([...oldItemMap.keys(), ...newItemMap.keys()]);
+
+      for (const prodId of allProductIds) {
+        const oldQty = oldItemMap.get(prodId) || 0;
+        const newQty = newItemMap.get(prodId) || 0;
+        const diff = newQty - oldQty; // >0: sold more, <0: sold less (stock returned)
+
+        if (diff !== 0) {
+          const current = branchStocks.find((s) => s.branchId === sale.branchId && s.productId === prodId);
+          const prod = products.find((p) => p.id === prodId);
+          if (current) {
+            const newCurrentStock = current.currentStock - diff;
+            const updatedEntry: BranchProductStock = {
+              ...current,
+              quantitySold: Math.max(0, current.quantitySold + diff),
+              currentStock: newCurrentStock,
+              lastUpdated: new Date().toLocaleString(),
+            };
+            changedStocks.push(updatedEntry);
+
+            movementsToAdd.push({
+              id: `mov_edit_sale_${Date.now()}_${prodId}`,
+              timestamp: new Date().toLocaleString(),
+              date: data.date || sale.date,
+              branchId: sale.branchId,
+              branchName: sale.branchName,
+              productId: prodId,
+              productName: prod?.name || 'Product',
+              sku: prod?.sku || 'SKU',
+              type: diff > 0 ? 'stock_out' : 'stock_in',
+              quantityChange: -diff,
+              balanceAfter: newCurrentStock,
+              referenceNo: sale.invoiceNo,
+              notes: `Super Admin Sale Edit: Quantity adjusted by ${diff > 0 ? `+${diff}` : diff} units.`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+            });
+          }
+        }
+      }
+
+      totalQuantitySold = 0;
+      updatedSaleItems = data.items.map((it, idx) => {
+        const prod = products.find((p) => p.id === it.productId);
+        const purchaseCost = prod ? prod.purchasePrice : 0;
+        const totalCost = Number((it.quantity * purchaseCost).toFixed(2));
+        const totalSales = Number((it.quantity * it.sellingPrice).toFixed(2));
+        const grossProfit = Number((totalSales - totalCost).toFixed(2));
+        totalQuantitySold += it.quantity;
+
+        return {
+          id: sale.items[idx]?.id || `sli_${Date.now()}_${idx}`,
+          productId: it.productId,
+          productName: prod?.name || 'Product',
+          sku: prod?.sku || 'SKU',
+          categoryName: prod?.categoryName || 'Cosmetic Products',
+          quantity: it.quantity,
+          purchaseCost,
+          sellingPrice: it.sellingPrice,
+          totalCost,
+          totalSales,
+          grossProfit,
+          isDecant: it.isDecant,
+          decantVariantName: it.decantVariantName,
+          decantMlAmount: it.decantMlAmount,
+        };
+      });
+    }
+
+    const subtotal = Number(updatedSaleItems.reduce((acc, si) => acc + si.totalSales, 0).toFixed(2));
+    const discType = data.discountType !== undefined ? data.discountType : (sale.discountType || 'fixed');
+    const discVal = data.discountValue !== undefined ? Math.max(0, Number(data.discountValue) || 0) : (sale.discountValue || 0);
+    const discAmount = calculateDiscountAmount(subtotal, discType, discVal);
+
+    const totals = calculateSaleTotals(
+      updatedSaleItems.map((si) => ({
+        quantity: si.quantity,
+        purchaseCost: si.purchaseCost,
+        sellingPrice: si.sellingPrice,
+      })),
+      discAmount
+    );
+
+    const updatedSale: SaleTransaction = {
+      ...sale,
+      customerName: data.customerName !== undefined ? data.customerName.trim() : sale.customerName,
+      customerPhone: data.customerPhone !== undefined ? data.customerPhone.trim() : sale.customerPhone,
+      paymentMethod: data.paymentMethod || sale.paymentMethod,
+      date: data.date || sale.date,
+      notes: data.notes !== undefined ? data.notes : sale.notes,
+      items: updatedSaleItems,
+      totalQuantitySold,
+      subtotal: totals.subtotal,
+      discountType: discVal > 0 ? discType : undefined,
+      discountValue: discVal > 0 ? discVal : undefined,
+      discountAmount: totals.discountAmount,
+      totalCostOfGoodsSold: totals.totalCost,
+      totalSalesAmount: totals.totalSales,
+      grossProfit: totals.grossProfit,
+    };
+
+    setSales((prev) => prev.map((s) => (s.id === saleId ? updatedSale : s)));
+
+    if (changedStocks.length > 0) {
+      setBranchStocks((prev) =>
+        prev.map((s) => {
+          const m = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+          return m ? m : s;
+        })
+      );
+      changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    }
+
+    if (movementsToAdd.length > 0) {
+      setStockMovements((prev) => [...movementsToAdd, ...prev]);
+      movementsToAdd.forEach((m) => syncMovementInsert(m));
+    }
+
+    syncSaleUpsert(updatedSale);
+
+    return { success: true, message: `Invoice "${sale.invoiceNo}" updated successfully.` };
+  };
+
+  // Permanently Delete Sale Invoice (Super Admin Only: Auto Stock-In / Restore)
   const deleteSale = (saleId: string) => {
     if (currentUser.role !== 'super_admin') {
       return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার সেল ইনভয়েস সরাসরি ডিলিট করতে পারবেন।' };
@@ -1826,7 +2394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movementsToAdd: StockMovement[] = [];
     const changedStocks: BranchProductStock[] = [];
 
-    // If sale was completed, restore stock so inventory numbers stay 100% accurate
+    // If sale was completed, auto stock-in / restore stock back to branch inventory
     if (sale.status === 'completed') {
       for (const item of sale.items) {
         const current = branchStocks.find((s) => s.branchId === sale.branchId && s.productId === item.productId);
@@ -1863,11 +2431,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               productId: item.productId,
               productName: item.productName,
               sku: item.sku,
-              type: 'sale_cancellation',
+              type: 'stock_in',
               quantityChange: restoreRes.bottlesIncremented,
               balanceAfter: restoreRes.newCurrentStock,
               referenceNo: sale.invoiceNo,
-              notes: `Super Admin Invoice Deletion: Restored ${mlRestored}ml (${restoreRes.bottlesIncremented} bottle restored).`,
+              notes: `Super Admin Invoice Deletion: Auto stock restored (Stock-In ${mlRestored}ml, ${restoreRes.bottlesIncremented} bottle).`,
               userId: currentUser.id,
               userName: currentUser.name,
             });
@@ -1890,11 +2458,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               productId: item.productId,
               productName: item.productName,
               sku: item.sku,
-              type: 'sale_cancellation',
+              type: 'stock_in',
               quantityChange: item.quantity,
               balanceAfter: restoredCurrentStock,
               referenceNo: sale.invoiceNo,
-              notes: `Super Admin Invoice Deletion: Stock restored (+${item.quantity} units).`,
+              notes: `Super Admin Invoice Deletion: Auto stock restored (Stock-In +${item.quantity} units).`,
               userId: currentUser.id,
               userName: currentUser.name,
             });
@@ -1924,7 +2492,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Permanently remove from Supabase online database
     syncSaleDelete(saleId);
 
-    return { success: true, message: `Invoice "${sale.invoiceNo}" permanently deleted by Super Admin.` };
+    return { success: true, message: `Invoice "${sale.invoiceNo}" permanently deleted and stock auto-restored (Stock-In).` };
   };
 
 
@@ -2499,8 +3067,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         checkUserDeletable,
         deleteUserSafe,
         createStockIn,
+        updateStockIn,
+        deleteStockIn,
         createStockOut,
+        updateStockOut,
+        deleteStockOut,
         createSale,
+        updateSale,
         cancelSale,
         deleteSale,
         createTransfer,

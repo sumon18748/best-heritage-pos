@@ -412,6 +412,17 @@ export async function syncStockInUpsert(si: StockInTransaction) {
   }
 }
 
+export async function syncStockInDelete(id: string) {
+  try {
+    const { error } = await supabase.from('stock_ins').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase syncStockInDelete error:', error);
+    }
+  } catch (err) {
+    console.warn('Sync stock in delete failed:', err);
+  }
+}
+
 export async function syncStockOutUpsert(so: StockOutTransaction) {
   try {
     const { error } = await supabase.from('stock_outs').upsert({
@@ -434,6 +445,17 @@ export async function syncStockOutUpsert(so: StockOutTransaction) {
     }
   } catch (err) {
     console.warn('Sync stock out failed:', err);
+  }
+}
+
+export async function syncStockOutDelete(id: string) {
+  try {
+    const { error } = await supabase.from('stock_outs').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase syncStockOutDelete error:', error);
+    }
+  } catch (err) {
+    console.warn('Sync stock out delete failed:', err);
   }
 }
 

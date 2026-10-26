@@ -91,10 +91,22 @@ export const LoginView: React.FC = () => {
               </div>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
                 maxLength={5}
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value.slice(0, 5))}
+                onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                onKeyDown={(e) => {
+                  if (
+                    !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key) &&
+                    !e.ctrlKey &&
+                    !e.metaKey &&
+                    (!/^\d$/.test(e.key) || identifier.length >= 5)
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
                 placeholder="00000"
                 className="w-full pl-10 pr-4 py-2.5 text-xs font-mono font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all bg-slate-50/50 placeholder:text-slate-400"
                 autoFocus
