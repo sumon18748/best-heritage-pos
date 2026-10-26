@@ -13,6 +13,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import {
+  calculateCurrentStock,
   calculateStockAlertStatus,
   formatCurrencyBDT,
 } from '../utils/stockCalculations';
@@ -28,6 +29,7 @@ export const CurrentStockView: React.FC = () => {
     currentUser,
     selectedBranchId,
     canViewProfit,
+    getProductBatchesForBranch,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,7 +48,19 @@ export const CurrentStockView: React.FC = () => {
       const product = products.find((p) => p.id === stock.productId);
       const branch = branches.find((b) => b.id === stock.branchId);
 
-      const currentStock = stock.currentStock;
+      // Business Formula: Current Stock = Opening Stock + Stock In - Stock Out - Sold
+      const currentStock = calculateCurrentStock({
+        openingStock: stock.openingStock,
+        stockIn: stock.stockIn,
+        stockOut: stock.stockOut,
+        quantitySold: stock.quantitySold,
+        salesReturn: stock.salesReturn,
+        purchaseReturn: stock.purchaseReturn,
+      });
+
+      const batches = getProductBatchesForBranch(stock.branchId, stock.productId);
+      const activeBatches = batches.filter((b) => b.remainingQuantity > 0);
+
       const status = calculateStockAlertStatus(currentStock, stock.minAlertLevel);
       const purchasePrice = product?.purchasePrice || 0;
       const sellingPrice = product?.sellingPrice || 0;
@@ -54,6 +68,8 @@ export const CurrentStockView: React.FC = () => {
 
       return {
         ...stock,
+        currentStock,
+        activeBatches,
         productName: product?.name || 'Unknown',
         sku: product?.sku || 'SKU',
         barcode: product?.barcode,
@@ -546,6 +562,24 @@ export const CurrentStockView: React.FC = () => {
                       <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{row.sku}</span>
                       <span className="ml-1.5 text-slate-400">({row.categoryName})</span>
                     </div>
+                    {row.activeBatches && row.activeBatches.length > 1 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-400 font-medium">ব্যাচ:</span>
+                        {row.activeBatches.map((b, bIdx) => (
+                          <span
+                            key={b.batchId}
+                            className={`inline-flex items-center text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                              bIdx === 0
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 font-semibold'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                            title={bIdx === 0 ? 'Lowest Cost Batch: Sells First' : 'Higher Cost Batch'}
+                          >
+                            {b.remainingQuantity} pcs {canViewProfit ? `@ Tk ${b.purchasePrice}` : ''} {bIdx === 0 ? '(১ম সেল)' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4 font-medium text-slate-800">
                     {row.branchName}

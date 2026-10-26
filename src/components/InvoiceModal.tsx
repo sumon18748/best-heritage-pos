@@ -114,6 +114,11 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ sale, onClose }) => 
                     <td className="py-2.5 px-3">
                       <div className="font-semibold text-slate-900 flex items-center space-x-1.5">
                         <span>{it.productName}</span>
+                        {it.batchReferenceNo && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-slate-100 text-slate-600 border border-slate-200" title="Batch Lot">
+                            {it.batchReferenceNo}
+                          </span>
+                        )}
                         {it.isDecant && (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             🧴 {it.decantVariantName || `${it.decantMlAmount} ml`}

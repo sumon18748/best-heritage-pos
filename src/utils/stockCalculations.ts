@@ -311,3 +311,167 @@ export function calculateDecantCancelRestore(params: {
     bottlesIncremented,
   };
 }
+
+/**
+ * Multi-price Batch Inventory Tracking
+ * Represents an inward stock batch (Opening stock or Stock In transaction)
+ */
+export interface AvailableBatch {
+  batchId: string;
+  sourceType: 'opening' | 'stock_in';
+  referenceNo: string;
+  date: string;
+  purchasePrice: number;
+  initialQuantity: number;
+  consumedQuantity: number;
+  remainingQuantity: number;
+}
+
+export interface BatchSaleAllocation {
+  batchId: string;
+  referenceNo: string;
+  purchasePrice: number;
+  quantity: number;
+}
+
+export interface StockInLikeItem {
+  productId: string;
+  quantity: number;
+  purchasePrice: number;
+}
+
+export interface StockInLikeTransaction {
+  id: string;
+  referenceNo: string;
+  date: string;
+  branchId: string;
+  items: StockInLikeItem[];
+}
+
+/**
+ * Computes available batches for a product at a branch, sorted by lowest purchase price first.
+ * Then consumes already sold/stock-out quantities so that lower-cost batches are depleted first.
+ */
+export function getProductBatches(params: {
+  branchId: string;
+  productId: string;
+  openingStock: number;
+  defaultPurchasePrice: number;
+  stockIns: StockInLikeTransaction[];
+  totalConsumedQty: number; // (branchStock.quantitySold || 0) + (branchStock.stockOut || 0)
+}): AvailableBatch[] {
+  const allBatches: {
+    batchId: string;
+    sourceType: 'opening' | 'stock_in';
+    referenceNo: string;
+    date: string;
+    purchasePrice: number;
+    initialQuantity: number;
+  }[] = [];
+
+  // 1. Opening stock batch (if any)
+  const openingQty = Math.max(0, Number(params.openingStock) || 0);
+  if (openingQty > 0) {
+    allBatches.push({
+      batchId: `batch_open_${params.productId}`,
+      sourceType: 'opening',
+      referenceNo: 'Opening Stock',
+      date: '1970-01-01',
+      purchasePrice: Math.max(0, Number(params.defaultPurchasePrice) || 0),
+      initialQuantity: openingQty,
+    });
+  }
+
+  // 2. Stock In transactions for this branch and product
+  const relevantTx = (params.stockIns || []).filter((tx) => tx.branchId === params.branchId);
+  for (const tx of relevantTx) {
+    for (let i = 0; i < (tx.items || []).length; i++) {
+      const it = tx.items[i];
+      if (it.productId === params.productId && it.quantity > 0) {
+        allBatches.push({
+          batchId: `batch_si_${tx.id}_${i}`,
+          sourceType: 'stock_in',
+          referenceNo: tx.referenceNo || 'Stock In',
+          date: tx.date || '',
+          purchasePrice: Math.max(0, Number(it.purchasePrice) || 0),
+          initialQuantity: Math.max(0, Number(it.quantity) || 0),
+        });
+      }
+    }
+  }
+
+  // 3. User's Golden Rule: "কম দামেরটা আগে সেল হবে তারপরে বেশি দামেরটা হবে"
+  // Primary sort: purchasePrice ASC (lowest cost first).
+  // Secondary sort: date ASC (earliest first / FIFO).
+  allBatches.sort((a, b) => {
+    if (a.purchasePrice !== b.purchasePrice) {
+      return a.purchasePrice - b.purchasePrice;
+    }
+    return (a.date || '').localeCompare(b.date || '');
+  });
+
+  // 4. Deplete already consumed units (sold + stockOut) starting from the lowest price batch first
+  let unallocatedConsumed = Math.max(0, Number(params.totalConsumedQty) || 0);
+
+  const batchesWithRemaining: AvailableBatch[] = allBatches.map((b) => {
+    const consumed = Math.min(b.initialQuantity, unallocatedConsumed);
+    unallocatedConsumed -= consumed;
+    const remaining = Math.max(0, b.initialQuantity - consumed);
+
+    return {
+      batchId: b.batchId,
+      sourceType: b.sourceType,
+      referenceNo: b.referenceNo,
+      date: b.date,
+      purchasePrice: b.purchasePrice,
+      initialQuantity: b.initialQuantity,
+      consumedQuantity: consumed,
+      remainingQuantity: remaining,
+    };
+  });
+
+  return batchesWithRemaining;
+}
+
+/**
+ * Allocates requested sale quantity across available batches starting from lowest cost first.
+ * If quantity spans multiple batches with different purchase prices, splits into separate allocations.
+ */
+export function allocateSaleFromLowestCostBatches(
+  availableBatches: AvailableBatch[],
+  quantityRequested: number,
+  fallbackPurchasePrice: number = 0
+): BatchSaleAllocation[] {
+  let needed = Math.max(0, Number(quantityRequested) || 0);
+  const allocations: BatchSaleAllocation[] = [];
+
+  // Filter batches with remaining stock > 0 (already sorted lowest price first)
+  const activeBatches = (availableBatches || []).filter((b) => b.remainingQuantity > 0);
+
+  for (const batch of activeBatches) {
+    if (needed <= 0) break;
+    const take = Math.min(batch.remainingQuantity, needed);
+    if (take > 0) {
+      allocations.push({
+        batchId: batch.batchId,
+        referenceNo: batch.referenceNo,
+        purchasePrice: batch.purchasePrice,
+        quantity: take,
+      });
+      needed -= take;
+    }
+  }
+
+  // If there's still quantity needed (e.g. initial stock not explicitly logged as stockIn batch)
+  if (needed > 0) {
+    allocations.push({
+      batchId: 'unrecorded_batch',
+      referenceNo: 'General Stock',
+      purchasePrice: Math.max(0, Number(fallbackPurchasePrice) || 0),
+      quantity: needed,
+    });
+  }
+
+  return allocations;
+}
+

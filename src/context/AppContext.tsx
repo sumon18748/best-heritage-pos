@@ -10,6 +10,7 @@ import {
   StockInTransaction,
   StockOutTransaction,
   SaleTransaction,
+  SaleItem,
   StockMovement,
   ActiveTab,
   StockOutReason,
@@ -40,12 +41,16 @@ import {
   INITIAL_EXPENSE_CATEGORIES,
 } from '../data/mockData';
 import {
+  calculateCurrentStock,
   calculateSaleTotals,
   calculateDiscountAmount,
   canInitiateTransfer,
   calculateDecantItemCost,
   calculateDecantStockDeduction,
   calculateDecantCancelRestore,
+  getProductBatches,
+  allocateSaleFromLowestCostBatches,
+  AvailableBatch,
 } from '../utils/stockCalculations';
 import {
   fetchAllCollections,
@@ -242,6 +247,7 @@ interface AppContextType {
 
 
   getProductStockForBranch: (productId: string, branchId: string) => BranchProductStock | undefined;
+  getProductBatchesForBranch: (branchId: string, productId: string) => AvailableBatch[];
   getProductTotalStockAcrossBranches: (productId: string) => number;
   resetAllDataToDefault: () => void;
 
@@ -842,6 +848,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getProductStockForBranch = (productId: string, branchId: string): BranchProductStock | undefined => {
     return branchStocks.find((s) => s.productId === productId && s.branchId === branchId);
+  };
+
+  const getProductBatchesForBranch = (branchId: string, productId: string): AvailableBatch[] => {
+    const stock = branchStocks.find((s) => s.productId === productId && s.branchId === branchId);
+    const prod = products.find((p) => p.id === productId);
+    return getProductBatches({
+      branchId,
+      productId,
+      openingStock: stock?.openingStock || 0,
+      defaultPurchasePrice: prod?.purchasePrice || 0,
+      stockIns,
+      totalConsumedQty: (stock?.quantitySold || 0) + (stock?.stockOut || 0),
+    });
   };
 
   const getProductTotalStockAcrossBranches = (productId: string): number => {
@@ -1935,39 +1954,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const invoiceNo = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     let totalQuantitySold = 0;
-    const saleItems = data.items.map((item, idx) => {
+    const saleItems: SaleItem[] = [];
+
+    // Track simulated consumption within this sale across items of the same product
+    const runningProductConsumedMap = new Map<string, number>();
+
+    for (const item of data.items) {
       const prod = products.find((p) => p.id === item.productId);
-      let purchaseCost = prod ? prod.purchasePrice : 0;
+      const stock = branchStocks.find((s) => s.branchId === data.branchId && s.productId === item.productId);
 
       if (item.isDecant && item.decantMlAmount) {
         const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
-        purchaseCost = calculateDecantItemCost(prod?.purchasePrice || 0, capacity, item.decantMlAmount);
+        const purchaseCost = calculateDecantItemCost(prod?.purchasePrice || 0, capacity, item.decantMlAmount);
+        const sellingPrice = item.sellingPrice;
+        const totalCost = Number((item.quantity * purchaseCost).toFixed(2));
+        const totalSales = Number((item.quantity * sellingPrice).toFixed(2));
+        const grossProfit = Number((totalSales - totalCost).toFixed(2));
+
+        totalQuantitySold += item.quantity;
+        saleItems.push({
+          id: `sli_${Date.now()}_${saleItems.length}`,
+          productId: item.productId,
+          productName: prod?.name || 'Product',
+          sku: prod?.sku || 'SKU',
+          categoryName: prod?.categoryName || 'Cosmetic Products',
+          quantity: item.quantity,
+          purchaseCost,
+          sellingPrice,
+          totalCost,
+          totalSales,
+          grossProfit,
+          isDecant: true,
+          decantVariantName: item.decantVariantName,
+          decantMlAmount: item.decantMlAmount,
+        });
+      } else {
+        // Multi-price Batch Allocation: Lowest purchase price batch sells first!
+        const baseConsumed = (stock?.quantitySold || 0) + (stock?.stockOut || 0);
+        const extraConsumedInThisTx = runningProductConsumedMap.get(item.productId) || 0;
+        const totalPriorConsumed = baseConsumed + extraConsumedInThisTx;
+
+        const batches = getProductBatches({
+          branchId: data.branchId,
+          productId: item.productId,
+          openingStock: stock?.openingStock || 0,
+          defaultPurchasePrice: prod?.purchasePrice || 0,
+          stockIns,
+          totalConsumedQty: totalPriorConsumed,
+        });
+
+        const allocations = allocateSaleFromLowestCostBatches(batches, item.quantity, prod?.purchasePrice || 0);
+
+        for (const alloc of allocations) {
+          const totalCost = Number((alloc.quantity * alloc.purchasePrice).toFixed(2));
+          const totalSales = Number((alloc.quantity * item.sellingPrice).toFixed(2));
+          const grossProfit = Number((totalSales - totalCost).toFixed(2));
+
+          totalQuantitySold += alloc.quantity;
+          saleItems.push({
+            id: `sli_${Date.now()}_${saleItems.length}`,
+            productId: item.productId,
+            productName: prod?.name || 'Product',
+            sku: prod?.sku || 'SKU',
+            categoryName: prod?.categoryName || 'Cosmetic Products',
+            quantity: alloc.quantity,
+            purchaseCost: alloc.purchasePrice,
+            sellingPrice: item.sellingPrice,
+            totalCost,
+            totalSales,
+            grossProfit,
+            batchReferenceNo: alloc.referenceNo,
+            batchPurchasePrice: alloc.purchasePrice,
+            isDecant: false,
+          });
+        }
+
+        runningProductConsumedMap.set(item.productId, extraConsumedInThisTx + item.quantity);
       }
-
-      const sellingPrice = item.sellingPrice;
-      const totalCost = Number((item.quantity * purchaseCost).toFixed(2));
-      const totalSales = Number((item.quantity * sellingPrice).toFixed(2));
-      const grossProfit = Number((totalSales - totalCost).toFixed(2));
-
-      totalQuantitySold += item.quantity;
-
-      return {
-        id: `sli_${Date.now()}_${idx}`,
-        productId: item.productId,
-        productName: prod?.name || 'Product',
-        sku: prod?.sku || 'SKU',
-        categoryName: prod?.categoryName || 'Cosmetic Products',
-        quantity: item.quantity,
-        purchaseCost,
-        sellingPrice,
-        totalCost,
-        totalSales,
-        grossProfit,
-        isDecant: item.isDecant,
-        decantVariantName: item.decantVariantName,
-        decantMlAmount: item.decantMlAmount,
-      };
-    });
+    }
 
     const subtotal = Number(saleItems.reduce((acc, si) => acc + si.totalSales, 0).toFixed(2));
     const discType = data.discountType || 'fixed';
@@ -2011,78 +2075,98 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movementsToAdd: StockMovement[] = [];
     const changedStocks: BranchProductStock[] = [];
 
-    // Precalculate synchronously so changedStocks is immediately populated for Supabase sync
+    // Group and accumulate product stock adjustments cleanly
+    const productDeductionMap = new Map<string, {
+      totalSoldUnits: number;
+      decantBottles: number;
+      decantRemainingMl?: number;
+      isDecant: boolean;
+      decantMlTotal: number;
+      productName: string;
+      sku: string;
+    }>();
+
     for (const item of saleItems) {
-      const current = branchStocks.find((s) => s.branchId === data.branchId && s.productId === item.productId);
-      const prod = products.find((p) => p.id === item.productId);
+      const existing = productDeductionMap.get(item.productId);
+      if (item.isDecant && item.decantMlAmount) {
+        const prod = products.find((p) => p.id === item.productId);
+        const current = branchStocks.find((s) => s.branchId === data.branchId && s.productId === item.productId);
+        const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
+        const mlSold = item.decantMlAmount * item.quantity;
+        const currentOpenBottle = existing?.decantRemainingMl !== undefined ? existing.decantRemainingMl : (current?.openBottleMlRemaining || 0);
+        const currentBottles = existing ? (current?.currentStock || 0) - (existing.decantBottles || 0) : (current?.currentStock || 0);
 
+        const decantRes = calculateDecantStockDeduction({
+          currentStock: currentBottles,
+          currentOpenBottleMl: currentOpenBottle,
+          bottleCapacityMl: capacity,
+          wastageMl: 0,
+          mlSold,
+        });
+
+        productDeductionMap.set(item.productId, {
+          totalSoldUnits: (existing?.totalSoldUnits || 0) + decantRes.bottlesDecremented,
+          decantBottles: (existing?.decantBottles || 0) + decantRes.bottlesDecremented,
+          decantRemainingMl: decantRes.newOpenBottleMl,
+          isDecant: true,
+          decantMlTotal: (existing?.decantMlTotal || 0) + mlSold,
+          productName: item.productName,
+          sku: item.sku,
+        });
+      } else {
+        productDeductionMap.set(item.productId, {
+          totalSoldUnits: (existing?.totalSoldUnits || 0) + item.quantity,
+          decantBottles: 0,
+          decantRemainingMl: existing?.decantRemainingMl,
+          isDecant: false,
+          decantMlTotal: 0,
+          productName: item.productName,
+          sku: item.sku,
+        });
+      }
+    }
+
+    for (const [prodId, ded] of productDeductionMap.entries()) {
+      const current = branchStocks.find((s) => s.branchId === data.branchId && s.productId === prodId);
       if (current) {
-        if (item.isDecant && item.decantMlAmount) {
-          const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
-          const mlSold = item.decantMlAmount * item.quantity;
+        const newSold = (current.quantitySold || 0) + ded.totalSoldUnits;
+        const newCurrentStock = calculateCurrentStock({
+          openingStock: current.openingStock,
+          stockIn: current.stockIn,
+          stockOut: current.stockOut,
+          quantitySold: newSold,
+          salesReturn: current.salesReturn,
+          purchaseReturn: current.purchaseReturn,
+        });
 
-          const decantRes = calculateDecantStockDeduction({
-            currentStock: current.currentStock,
-            currentOpenBottleMl: current.openBottleMlRemaining,
-            bottleCapacityMl: capacity,
-            wastageMl: 0,
-            mlSold,
-          });
+        const updatedEntry: BranchProductStock = {
+          ...current,
+          quantitySold: newSold,
+          currentStock: newCurrentStock,
+          openBottleMlRemaining: ded.isDecant ? ded.decantRemainingMl : current.openBottleMlRemaining,
+          lastUpdated: new Date().toLocaleString(),
+        };
+        changedStocks.push(updatedEntry);
 
-          const updatedEntry: BranchProductStock = {
-            ...current,
-            currentStock: decantRes.newCurrentStock,
-            openBottleMlRemaining: decantRes.newOpenBottleMl,
-            quantitySold: current.quantitySold + decantRes.bottlesDecremented,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          changedStocks.push(updatedEntry);
-
-          movementsToAdd.push({
-            id: `mov_${Date.now()}_${item.productId}`,
-            timestamp: new Date().toLocaleString(),
-            date: data.date,
-            branchId: data.branchId,
-            branchName: branch.name,
-            productId: item.productId,
-            productName: item.productName,
-            sku: item.sku,
-            type: 'sale',
-            quantityChange: -decantRes.bottlesDecremented,
-            balanceAfter: decantRes.newCurrentStock,
-            referenceNo: invoiceNo,
-            notes: `Decanted sale: ${item.quantity}x ${item.decantVariantName || ''} (${mlSold}ml). Open bottle: ${decantRes.newOpenBottleMl}ml remaining. Sold to: ${newSale.customerName} (${data.paymentMethod})`,
-            userId: currentUser.id,
-            userName: currentUser.name,
-          });
-        } else {
-          const newCurrentStock = current.currentStock - item.quantity;
-          const updatedEntry: BranchProductStock = {
-            ...current,
-            quantitySold: current.quantitySold + item.quantity,
-            currentStock: newCurrentStock,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          changedStocks.push(updatedEntry);
-
-          movementsToAdd.push({
-            id: `mov_${Date.now()}_${item.productId}`,
-            timestamp: new Date().toLocaleString(),
-            date: data.date,
-            branchId: data.branchId,
-            branchName: branch.name,
-            productId: item.productId,
-            productName: item.productName,
-            sku: item.sku,
-            type: 'sale',
-            quantityChange: -item.quantity,
-            balanceAfter: newCurrentStock,
-            referenceNo: invoiceNo,
-            notes: `Sold to: ${newSale.customerName} (${data.paymentMethod})`,
-            userId: currentUser.id,
-            userName: currentUser.name,
-          });
-        }
+        movementsToAdd.push({
+          id: `mov_${Date.now()}_${prodId}`,
+          timestamp: new Date().toLocaleString(),
+          date: data.date,
+          branchId: data.branchId,
+          branchName: branch.name,
+          productId: prodId,
+          productName: ded.productName,
+          sku: ded.sku,
+          type: 'sale',
+          quantityChange: -ded.totalSoldUnits,
+          balanceAfter: newCurrentStock,
+          referenceNo: invoiceNo,
+          notes: ded.isDecant
+            ? `Decanted sale (${ded.decantMlTotal}ml). Open bottle: ${ded.decantRemainingMl}ml. Sold to: ${newSale.customerName}`
+            : `Sold to: ${newSale.customerName} (${data.paymentMethod})`,
+          userId: currentUser.id,
+          userName: currentUser.name,
+        });
       }
     }
 
@@ -3087,6 +3171,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateExpenseCategory,
         deleteExpenseCategory,
         getProductStockForBranch,
+        getProductBatchesForBranch,
         getProductTotalStockAcrossBranches,
         resetAllDataToDefault,
         isAuthenticated,

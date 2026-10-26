@@ -275,4 +275,104 @@ test('login authentication supports 5-digit user IDs: 99999, 00001, 00002 with p
   assert.equal(manager.branchName, 'Aftabnagar Branch');
 });
 
+test('Multi-Price Stock In: quantities sum together and lowest cost batch sells first', async () => {
+  const { getProductBatches, allocateSaleFromLowestCostBatches } = await import('./stockCalculations.ts');
+
+  // Scenario:
+  // Product: "Oud Royale", branch: "b1"
+  // Stock In 1: 5 units @ 100 Tk purchase price (Ref: SI-001, Date: 2026-10-01)
+  // Stock In 2: 10 units @ 150 Tk purchase price (Ref: SI-002, Date: 2026-10-05)
+  // Total Stock In = 5 + 10 = 15 units.
+  const stockIns = [
+    {
+      id: 'si_1',
+      referenceNo: 'SI-001',
+      date: '2026-10-01',
+      branchId: 'b1',
+      items: [{ productId: 'p1', quantity: 5, purchasePrice: 100 }],
+    },
+    {
+      id: 'si_2',
+      referenceNo: 'SI-002',
+      date: '2026-10-05',
+      branchId: 'b1',
+      items: [{ productId: 'p1', quantity: 10, purchasePrice: 150 }],
+    },
+  ];
+
+  // 1. Initial State: Total consumed = 0
+  const batchesInitial = getProductBatches({
+    branchId: 'b1',
+    productId: 'p1',
+    openingStock: 0,
+    defaultPurchasePrice: 0,
+    stockIns,
+    totalConsumedQty: 0,
+  });
+
+  assert.equal(batchesInitial.length, 2);
+  // Lowest cost batch must be first!
+  assert.equal(batchesInitial[0].purchasePrice, 100);
+  assert.equal(batchesInitial[0].remainingQuantity, 5);
+  // Higher cost batch is second
+  assert.equal(batchesInitial[1].purchasePrice, 150);
+  assert.equal(batchesInitial[1].remainingQuantity, 10);
+
+  // Total quantity across batches = 5 + 10 = 15
+  const totalStockInitial = batchesInitial.reduce((sum, b) => sum + b.remainingQuantity, 0);
+  assert.equal(totalStockInitial, 15);
+
+  // 2. Sale 1: Sell 4 units
+  // Should all be taken from the 100 Tk batch (lowest cost first)
+  const allocation1 = allocateSaleFromLowestCostBatches(batchesInitial, 4);
+  assert.equal(allocation1.length, 1);
+  assert.equal(allocation1[0].purchasePrice, 100);
+  assert.equal(allocation1[0].quantity, 4);
+
+  // 3. Sale 2: Customer orders 7 units!
+  // Batch 1 (@ 100 Tk) only has 5 units.
+  // Requirement: "দুইটা আলাদা আলাদা ভাবে সেল করতে হবে। কম দামেরটা আগে সেল হবে তারপরে বেশি দামেরটা হবে।"
+  const allocation2 = allocateSaleFromLowestCostBatches(batchesInitial, 7);
+  assert.equal(allocation2.length, 2, 'Must split into two separate batch sales');
+  // First allocation: 5 units @ 100 Tk (lowest price batch exhausted first)
+  assert.equal(allocation2[0].purchasePrice, 100);
+  assert.equal(allocation2[0].quantity, 5);
+  // Second allocation: 2 units @ 150 Tk (remaining quantity taken from higher price batch)
+  assert.equal(allocation2[1].purchasePrice, 150);
+  assert.equal(allocation2[1].quantity, 2);
+
+  // 4. State after 7 units sold:
+  // Total consumed = 7
+  const batchesAfter7Sold = getProductBatches({
+    branchId: 'b1',
+    productId: 'p1',
+    openingStock: 0,
+    defaultPurchasePrice: 0,
+    stockIns,
+    totalConsumedQty: 7,
+  });
+
+  // Batch 1 (@ 100 Tk) is completely sold out (0 remaining)
+  assert.equal(batchesAfter7Sold[0].purchasePrice, 100);
+  assert.equal(batchesAfter7Sold[0].remainingQuantity, 0);
+  assert.equal(batchesAfter7Sold[0].consumedQuantity, 5);
+
+  // Batch 2 (@ 150 Tk) has 10 - 2 = 8 units remaining!
+  assert.equal(batchesAfter7Sold[1].purchasePrice, 150);
+  assert.equal(batchesAfter7Sold[1].remainingQuantity, 8);
+  assert.equal(batchesAfter7Sold[1].consumedQuantity, 2);
+
+  // Total current stock = 15 - 7 = 8 units
+  const totalStockAfter7 = batchesAfter7Sold.reduce((sum, b) => sum + b.remainingQuantity, 0);
+  assert.equal(totalStockAfter7, 8);
+
+  // 5. Subsequent Sale of 3 units:
+  // Must automatically sell from the remaining 150 Tk batch because 100 Tk batch is 0!
+  const allocation3 = allocateSaleFromLowestCostBatches(batchesAfter7Sold, 3);
+  assert.equal(allocation3.length, 1);
+  assert.equal(allocation3[0].purchasePrice, 150);
+  assert.equal(allocation3[0].quantity, 3);
+});
+
+
 

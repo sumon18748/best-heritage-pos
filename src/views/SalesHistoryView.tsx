@@ -480,6 +480,9 @@ export const SalesHistoryView: React.FC = () => {
                       {sale.items.map((it) => (
                         <div key={it.id} className="text-[11px] text-slate-800">
                           {it.quantity}x {it.productName}
+                          {it.batchReferenceNo && (
+                            <span className="ml-1 text-[10px] text-slate-400 font-mono">({it.batchReferenceNo})</span>
+                          )}
                         </div>
                       ))}
                     </div>

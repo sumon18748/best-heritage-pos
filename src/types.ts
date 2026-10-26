@@ -169,6 +169,8 @@ export interface SaleItem {
   totalCost: number;
   totalSales: number;
   grossProfit: number;
+  batchReferenceNo?: string;
+  batchPurchasePrice?: number;
   isDecant?: boolean;
   decantVariantName?: string; // e.g. "6 ml", "10 ml", "15 ml", "30 ml", or "Full Bottle (100 ml)"
   decantMlAmount?: number;
