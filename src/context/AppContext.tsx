@@ -418,11 +418,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
+        // ── Branches ──
         if (data.branches && data.branches.length > 0) setBranches(data.branches);
+
+        // ── Users ──
+        // Users in Supabase may have null permissions (stored separately in rolePermissions).
+        // Resolve each user's effective permissions from rolePermissions before updating state.
         if (data.users && data.users.length > 0) {
-          setUsers(data.users);
+          const cloudRolePerms = data.rolePermissions || {};
+          const resolvedUsers = data.users.map((u) => {
+            if (u.role === 'super_admin') return u;
+            // If user has individual overrides stored, keep them.
+            if (u.permissions && u.permissions.allowedTabs && u.permissions.allowedTabs.length > 0) return u;
+            // Otherwise fall back to role-level permissions from cloud or local defaults.
+            const rolePerm = cloudRolePerms[u.role] || getDefaultPermissionsForRole(u.role);
+            return { ...u, permissions: rolePerm };
+          });
+
+          setUsers(resolvedUsers);
+
+          // Update the currentUser in-place (name, role, permissions) without logging out
           setCurrentUserState((prevUser) => {
-            const matched = data.users!.find(
+            const matched = resolvedUsers.find(
               (u) => u.id === prevUser.id || u.username === prevUser.username
             );
             if (matched) {
@@ -440,14 +457,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return prevUser;
           });
         }
+
+        // ── Role Permissions ──
         if (data.rolePermissions) {
-          setRolePermissions(data.rolePermissions);
+          setRolePermissions((prev) => ({ ...prev, ...data.rolePermissions }));
         }
 
+        // ── Products: only overwrite if cloud has data, otherwise push local to cloud ──
         if (data.products !== null) {
           if (data.products.length > 0) {
             setProducts(data.products);
           } else {
+            // Cloud is empty – upload local data that was entered offline
             setProducts((prevLocal) => {
               if (prevLocal.length > 0) {
                 prevLocal.forEach((p) => syncProductUpsert(p));
@@ -457,109 +478,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
 
+        // ── Branch Stocks ──
         if (data.branchStocks !== null) {
           if (data.branchStocks.length > 0) {
             setBranchStocks(data.branchStocks);
           } else {
             setBranchStocks((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((s) => syncBranchStockUpsert(s));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((s) => syncBranchStockUpsert(s));
               return prevLocal;
             });
           }
         }
 
+        // ── Stock Ins ──
         if (data.stockIns !== null) {
           if (data.stockIns.length > 0) {
             setStockIns(data.stockIns);
           } else {
             setStockIns((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((si) => syncStockInUpsert(si));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((si) => syncStockInUpsert(si));
               return prevLocal;
             });
           }
         }
 
+        // ── Stock Outs ──
         if (data.stockOuts !== null) {
           if (data.stockOuts.length > 0) {
             setStockOuts(data.stockOuts);
           } else {
             setStockOuts((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((so) => syncStockOutUpsert(so));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((so) => syncStockOutUpsert(so));
               return prevLocal;
             });
           }
         }
 
+        // ── Sales ──
         if (data.sales !== null) {
           if (data.sales.length > 0) {
             setSales(data.sales);
           } else {
             setSales((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((s) => syncSaleUpsert(s));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((s) => syncSaleUpsert(s));
               return prevLocal;
             });
           }
         }
 
+        // ── Transfers ──
         if (data.transfers !== null) {
           if (data.transfers.length > 0) {
             setTransfers(data.transfers);
           } else {
             setTransfers((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((t) => syncTransferUpsert(t));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((t) => syncTransferUpsert(t));
               return prevLocal;
             });
           }
         }
 
+        // ── Expenses ──
         if (data.expenses !== null) {
           if (data.expenses.length > 0) {
             setExpenses(data.expenses);
           } else {
             setExpenses((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((e) => syncExpenseUpsert(e));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((e) => syncExpenseUpsert(e));
               return prevLocal;
             });
           }
         }
 
+        // ── Expense Categories ──
         if (data.expenseCategories && data.expenseCategories.length > 0) {
           setExpenseCategories(data.expenseCategories);
         }
 
+        // ── Opening Balances ──
         if (data.openingBalances !== null) {
           if (data.openingBalances.length > 0) {
             setOpeningBalances(data.openingBalances);
           } else {
             setOpeningBalances((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((ob) => syncOpeningBalanceUpsert(ob));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((ob) => syncOpeningBalanceUpsert(ob));
               return prevLocal;
             });
           }
         }
 
+        // ── Stock Movements ──
         if (data.movements !== null) {
           if (data.movements.length > 0) {
             setStockMovements(data.movements);
           } else {
             setStockMovements((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((m) => syncMovementInsert(m));
-              }
+              if (prevLocal.length > 0) prevLocal.forEach((m) => syncMovementInsert(m));
               return prevLocal;
             });
           }
@@ -582,10 +596,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .subscribe();
 
-    // 3. Heartbeat polling every 2.5 seconds (Guarantees 100% sync across all PCs without reloading)
+    // 3. Heartbeat polling every 3 seconds (Guarantees 100% sync across all PCs without reloading)
     const pollInterval = setInterval(() => {
       pullFromCloud(false);
-    }, 2500);
+    }, 3000);
 
     return () => {
       isMounted = false;
