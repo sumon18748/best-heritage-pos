@@ -64,21 +64,27 @@ export async function fetchAllCollections() {
         }))
       : null;
 
+    const rawUsers = usersRes.data || [];
+    const configRow = rawUsers.find((u: any) => u.id === 'config_role_permissions');
+    const rolePermissions = configRow?.permissions || null;
+
     const users: User[] | null = usersRes.data
-      ? usersRes.data.map((u: any) => ({
-          id: u.id,
-          username: u.username,
-          name: u.name,
-          email: u.email,
-          role: u.role,
-          branchId: u.branch_id || undefined,
-          branchName: u.branch_name || undefined,
-          phone: u.phone || '',
-          password: u.password || '123456',
-          status: u.status || 'active',
-          permissions: u.permissions || undefined,
-          createdAt: u.created_at || new Date().toISOString(),
-        }))
+      ? rawUsers
+          .filter((u: any) => u.id !== 'config_role_permissions')
+          .map((u: any) => ({
+            id: u.id,
+            username: u.username,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            branchId: u.branch_id || undefined,
+            branchName: u.branch_name || undefined,
+            phone: u.phone || '',
+            password: u.password || '123456',
+            status: u.status || 'active',
+            permissions: u.permissions || undefined,
+            createdAt: u.created_at || new Date().toISOString(),
+          }))
       : null;
 
     const categories: Category[] | null = categoriesRes.data
@@ -303,6 +309,7 @@ export async function fetchAllCollections() {
       expenseCategories,
       openingBalances,
       movements,
+      rolePermissions,
     };
   } catch (error) {
     console.error('Failed to fetch from Supabase:', error);
@@ -316,25 +323,30 @@ export async function fetchAllCollections() {
 
 export async function syncProductUpsert(p: Product) {
   try {
-    await supabase.from('products').upsert({
+    const { error } = await supabase.from('products').upsert({
       id: p.id,
       name: p.name,
       sku: p.sku,
-      barcode: p.barcode,
+      barcode: p.barcode || null,
       category_id: p.categoryId,
       category_name: p.categoryName,
-      subcategory: p.subcategory,
-      purchase_price: p.purchasePrice,
-      selling_price: p.sellingPrice,
-      opening_stock: p.openingStock,
-      min_alert_level: p.minAlertLevel,
-      unit_of_measure: p.unitOfMeasure,
-      package_size: p.packageSize,
-      package_unit: p.packageUnit,
-      bottle_capacity_ml: p.bottleCapacityMl,
-      decant_config: p.decantConfig,
-      status: p.status,
-    });
+      subcategory: p.subcategory || null,
+      purchase_price: p.purchasePrice || 0,
+      selling_price: p.sellingPrice || 0,
+      opening_stock: p.openingStock || 0,
+      min_alert_level: p.minAlertLevel || 5,
+      unit_of_measure: p.unitOfMeasure || 'pcs',
+      package_size: p.packageSize || null,
+      package_unit: p.packageUnit || null,
+      bottle_capacity_ml: p.bottleCapacityMl || null,
+      is_decant_allowed: p.decantConfig?.isDecantAllowed ?? false,
+      decant_variants: p.decantConfig?.decantVariants || null,
+      decant_config: p.decantConfig || null,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncProductUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync product failed:', err);
   }
@@ -342,7 +354,8 @@ export async function syncProductUpsert(p: Product) {
 
 export async function syncProductDelete(id: string) {
   try {
-    await supabase.from('products').delete().eq('id', id);
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) console.error('Supabase syncProductDelete error:', error);
   } catch (err) {
     console.warn('Sync product delete failed:', err);
   }
@@ -350,20 +363,24 @@ export async function syncProductDelete(id: string) {
 
 export async function syncBranchStockUpsert(s: BranchProductStock) {
   try {
-    await supabase.from('branch_stocks').upsert({
+    const { error } = await supabase.from('branch_stocks').upsert({
       id: s.id,
       branch_id: s.branchId,
       product_id: s.productId,
-      opening_stock: s.openingStock,
-      stock_in: s.stockIn,
-      sales_return: s.salesReturn,
-      stock_out: s.stockOut,
-      quantity_sold: s.quantitySold,
-      purchase_return: s.purchaseReturn,
-      current_stock: s.currentStock,
-      open_bottle_ml_remaining: s.openBottleMlRemaining,
-      min_alert_level: s.minAlertLevel,
-    });
+      opening_stock: s.openingStock || 0,
+      stock_in: s.stockIn || 0,
+      sales_return: s.salesReturn || 0,
+      stock_out: s.stockOut || 0,
+      quantity_sold: s.quantitySold || 0,
+      purchase_return: s.purchaseReturn || 0,
+      current_stock: s.currentStock || 0,
+      open_bottle_ml_remaining: s.openBottleMlRemaining || 0,
+      min_alert_level: s.minAlertLevel || 5,
+    }, { onConflict: 'branch_id,product_id' });
+
+    if (error) {
+      console.error('Supabase syncBranchStockUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync branch stock failed:', err);
   }
@@ -371,21 +388,25 @@ export async function syncBranchStockUpsert(s: BranchProductStock) {
 
 export async function syncStockInUpsert(si: StockInTransaction) {
   try {
-    await supabase.from('stock_ins').upsert({
+    const { error } = await supabase.from('stock_ins').upsert({
       id: si.id,
       reference_no: si.referenceNo,
       date: si.date,
       branch_id: si.branchId,
       branch_name: si.branchName,
-      supplier_name: si.supplierName,
-      supplier_invoice_no: si.supplierInvoiceNo,
-      remarks: si.remarks,
-      total_quantity: si.totalQuantity,
-      total_purchase_cost: si.totalPurchaseCost,
-      created_by_user_id: si.createdByUserId,
-      created_by_name: si.createdByName,
-      items: si.items,
-    });
+      supplier_name: si.supplierName || null,
+      supplier_invoice_no: si.supplierInvoiceNo || null,
+      remarks: si.remarks || null,
+      total_quantity: si.totalQuantity || 0,
+      total_purchase_cost: si.totalPurchaseCost || 0,
+      created_by_user_id: si.createdByUserId || null,
+      created_by_name: si.createdByName || null,
+      items: si.items || [],
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncStockInUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync stock in failed:', err);
   }
@@ -393,20 +414,24 @@ export async function syncStockInUpsert(si: StockInTransaction) {
 
 export async function syncStockOutUpsert(so: StockOutTransaction) {
   try {
-    await supabase.from('stock_outs').upsert({
+    const { error } = await supabase.from('stock_outs').upsert({
       id: so.id,
       reference_no: so.referenceNo,
       date: so.date,
       branch_id: so.branchId,
       branch_name: so.branchName,
       reason: so.reason,
-      reference_doc_no: so.referenceDocNo,
-      remarks: so.remarks,
-      total_quantity: so.totalQuantity,
-      created_by_user_id: so.createdByUserId,
-      created_by_name: so.createdByName,
-      items: so.items,
-    });
+      reference_doc_no: so.referenceDocNo || null,
+      remarks: so.remarks || null,
+      total_quantity: so.totalQuantity || 0,
+      created_by_user_id: so.createdByUserId || null,
+      created_by_name: so.createdByName || null,
+      items: so.items || [],
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncStockOutUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync stock out failed:', err);
   }
@@ -414,32 +439,36 @@ export async function syncStockOutUpsert(so: StockOutTransaction) {
 
 export async function syncSaleUpsert(s: SaleTransaction) {
   try {
-    await supabase.from('sales').upsert({
+    const { error } = await supabase.from('sales').upsert({
       id: s.id,
       invoice_no: s.invoiceNo,
       date: s.date,
       branch_id: s.branchId,
       branch_name: s.branchName,
-      customer_name: s.customerName,
-      customer_phone: s.customerPhone,
+      customer_name: s.customerName || 'Walk-in Customer',
+      customer_phone: s.customerPhone || null,
       payment_method: s.paymentMethod,
-      notes: s.notes,
-      total_quantity_sold: s.totalQuantitySold,
-      subtotal: s.subtotal,
-      discount_type: s.discountType,
-      discount_value: s.discountValue,
-      discount_amount: s.discountAmount,
-      total_cost_of_goods_sold: s.totalCostOfGoodsSold,
-      total_sales_amount: s.totalSalesAmount,
-      gross_profit: s.grossProfit,
-      created_by_user_id: s.createdByUserId,
-      created_by_name: s.createdByName,
-      status: s.status,
-      items: s.items,
-      cancellation_reason: s.cancellationReason,
-      cancelled_at: s.cancelledAt,
-      cancelled_by_name: s.cancelledByName,
-    });
+      notes: s.notes || null,
+      total_quantity_sold: s.totalQuantitySold || 0,
+      subtotal: s.subtotal || 0,
+      discount_type: s.discountType || null,
+      discount_value: s.discountValue || 0,
+      discount_amount: s.discountAmount || 0,
+      total_cost_of_goods_sold: s.totalCostOfGoodsSold || 0,
+      total_sales_amount: s.totalSalesAmount || 0,
+      gross_profit: s.grossProfit || 0,
+      created_by_user_id: s.createdByUserId || null,
+      created_by_name: s.createdByName || null,
+      status: s.status || 'completed',
+      items: s.items || [],
+      cancellation_reason: s.cancellationReason || null,
+      cancelled_at: s.cancelledAt || null,
+      cancelled_by_name: s.cancelledByName || null,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncSaleUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync sale failed:', err);
   }
@@ -447,7 +476,7 @@ export async function syncSaleUpsert(s: SaleTransaction) {
 
 export async function syncTransferUpsert(t: BranchTransfer) {
   try {
-    await supabase.from('branch_transfers').upsert({
+    const { error } = await supabase.from('branch_transfers').upsert({
       id: t.id,
       transfer_no: t.transferNo,
       date: t.date,
@@ -458,19 +487,23 @@ export async function syncTransferUpsert(t: BranchTransfer) {
       product_id: t.productId,
       product_name: t.productName,
       product_sku: t.sku,
-      quantity: t.quantity,
-      unit_purchase_cost: t.unitPurchaseCost,
-      total_transfer_cost: t.totalTransferCost,
+      quantity: t.quantity || 0,
+      unit_purchase_cost: t.unitPurchaseCost || 0,
+      total_transfer_cost: t.totalTransferCost || 0,
       status: t.status,
-      notes: t.notes,
-      dispatched_by: t.dispatchedBy,
-      dispatched_at: t.dispatchedAt,
-      received_by: t.receivedBy,
-      received_at: t.receivedAt,
-      cancelled_by: t.cancelledBy,
-      cancelled_at: t.cancelledAt,
-      cancellation_reason: t.cancellationReason,
-    });
+      notes: t.notes || null,
+      dispatched_by: t.dispatchedBy || null,
+      dispatched_at: t.dispatchedAt || null,
+      received_by: t.receivedBy || null,
+      received_at: t.receivedAt || null,
+      cancelled_by: t.cancelledBy || null,
+      cancelled_at: t.cancelledAt || null,
+      cancellation_reason: t.cancellationReason || null,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncTransferUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync transfer failed:', err);
   }
@@ -478,20 +511,24 @@ export async function syncTransferUpsert(t: BranchTransfer) {
 
 export async function syncExpenseUpsert(e: OperatingExpense) {
   try {
-    await supabase.from('operating_expenses').upsert({
+    const { error } = await supabase.from('operating_expenses').upsert({
       id: e.id,
       voucher_no: e.voucherNo,
       date: e.date,
       branch_id: e.branchId,
       branch_name: e.branchName,
       category: e.category,
-      amount: e.amount,
+      amount: e.amount || 0,
       payment_source: e.paymentSource,
-      description: e.description,
-      vendor_name: e.vendorName,
-      recorded_by_user_id: e.recordedByUserId,
-      recorded_by_name: e.recordedByName,
-    });
+      description: e.description || '',
+      vendor_name: e.vendorName || null,
+      recorded_by_user_id: e.recordedByUserId || null,
+      recorded_by_name: e.recordedByName || null,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncExpenseUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync expense failed:', err);
   }
@@ -499,7 +536,8 @@ export async function syncExpenseUpsert(e: OperatingExpense) {
 
 export async function syncExpenseDelete(id: string) {
   try {
-    await supabase.from('operating_expenses').delete().eq('id', id);
+    const { error } = await supabase.from('operating_expenses').delete().eq('id', id);
+    if (error) console.error('Supabase syncExpenseDelete error:', error);
   } catch (err) {
     console.warn('Sync expense delete failed:', err);
   }
@@ -507,12 +545,16 @@ export async function syncExpenseDelete(id: string) {
 
 export async function syncExpenseCategoryUpsert(ec: ExpenseCategoryItem) {
   try {
-    await supabase.from('expense_categories').upsert({
+    const { error } = await supabase.from('expense_categories').upsert({
       id: ec.id,
       name: ec.name,
-      description: ec.description,
-      is_default: ec.isDefault,
-    });
+      description: ec.description || null,
+      is_default: ec.isDefault ?? false,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncExpenseCategoryUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync expense category failed:', err);
   }
@@ -520,7 +562,8 @@ export async function syncExpenseCategoryUpsert(ec: ExpenseCategoryItem) {
 
 export async function syncExpenseCategoryDelete(id: string) {
   try {
-    await supabase.from('expense_categories').delete().eq('id', id);
+    const { error } = await supabase.from('expense_categories').delete().eq('id', id);
+    if (error) console.error('Supabase syncExpenseCategoryDelete error:', error);
   } catch (err) {
     console.warn('Sync expense category delete failed:', err);
   }
@@ -528,14 +571,18 @@ export async function syncExpenseCategoryDelete(id: string) {
 
 export async function syncBranchUpsert(b: Branch) {
   try {
-    await supabase.from('branches').upsert({
+    const { error } = await supabase.from('branches').upsert({
       id: b.id,
       name: b.name,
       code: b.code,
-      address: b.address,
-      contact_number: b.contactNumber,
-      is_active: b.isActive,
-    });
+      address: b.address || null,
+      contact_number: b.contactNumber || null,
+      is_active: b.isActive ?? true,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncBranchUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync branch failed:', err);
   }
@@ -543,7 +590,8 @@ export async function syncBranchUpsert(b: Branch) {
 
 export async function syncBranchDelete(id: string) {
   try {
-    await supabase.from('branches').delete().eq('id', id);
+    const { error } = await supabase.from('branches').delete().eq('id', id);
+    if (error) console.error('Supabase syncBranchDelete error:', error);
   } catch (err) {
     console.warn('Sync branch delete failed:', err);
   }
@@ -551,7 +599,7 @@ export async function syncBranchDelete(id: string) {
 
 export async function syncUserUpsert(u: User) {
   try {
-    await supabase.from('users').upsert({
+    const { error } = await supabase.from('users').upsert({
       id: u.id,
       username: u.username,
       name: u.name,
@@ -559,19 +607,43 @@ export async function syncUserUpsert(u: User) {
       role: u.role,
       branch_id: u.branchId || null,
       branch_name: u.branchName || null,
-      phone: u.phone,
+      phone: u.phone || null,
       password: u.password || '123456',
-      status: u.status,
+      status: u.status || 'active',
       permissions: u.permissions || null,
-    });
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncUserUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync user failed:', err);
   }
 }
 
+export async function syncRolePermissionsUpsert(rolePermissions: Record<string, any>) {
+  try {
+    const { error } = await supabase.from('users').upsert({
+      id: 'config_role_permissions',
+      username: 'CONFIG_ROLES',
+      name: 'Role Permissions Config',
+      email: 'roles_config@system.local',
+      role: 'super_admin',
+      permissions: rolePermissions,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncRolePermissionsUpsert error:', error);
+    }
+  } catch (err) {
+    console.warn('Sync role permissions failed:', err);
+  }
+}
+
 export async function syncUserDelete(id: string) {
   try {
-    await supabase.from('users').delete().eq('id', id);
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) console.error('Supabase syncUserDelete error:', error);
   } catch (err) {
     console.warn('Sync user delete failed:', err);
   }
@@ -579,16 +651,20 @@ export async function syncUserDelete(id: string) {
 
 export async function syncOpeningBalanceUpsert(ob: BranchOpeningBalance) {
   try {
-    await supabase.from('branch_opening_balances').upsert({
+    const { error } = await supabase.from('branch_opening_balances').upsert({
       id: ob.id,
       branch_id: ob.branchId,
       branch_name: ob.branchName,
       set_date: ob.date,
-      cash_in_hand: ob.openingCashAmount,
-      bank_balance: ob.openingBankAmount,
-      set_by_user_id: ob.setByUserId,
-      set_by_name: ob.setByName,
-    });
+      cash_in_hand: ob.openingCashAmount || 0,
+      bank_balance: ob.openingBankAmount || 0,
+      set_by_user_id: ob.setByUserId || null,
+      set_by_name: ob.setByName || null,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncOpeningBalanceUpsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync opening balance failed:', err);
   }
@@ -596,7 +672,7 @@ export async function syncOpeningBalanceUpsert(ob: BranchOpeningBalance) {
 
 export async function syncMovementInsert(m: StockMovement) {
   try {
-    await supabase.from('stock_movements').insert({
+    const { error } = await supabase.from('stock_movements').upsert({
       id: m.id,
       timestamp: m.timestamp,
       date: m.date,
@@ -606,13 +682,17 @@ export async function syncMovementInsert(m: StockMovement) {
       product_name: m.productName,
       sku: m.sku,
       type: m.type,
-      quantity_change: m.quantityChange,
-      balance_after: m.balanceAfter,
+      quantity_change: m.quantityChange || 0,
+      balance_after: m.balanceAfter || 0,
       reference_no: m.referenceNo,
-      notes: m.notes,
-      user_id: m.userId,
-      user_name: m.userName,
-    });
+      notes: m.notes || null,
+      user_id: m.userId || null,
+      user_name: m.userName || null,
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase syncMovementInsert error:', error);
+    }
   } catch (err) {
     console.warn('Sync movement failed:', err);
   }

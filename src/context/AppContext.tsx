@@ -63,6 +63,7 @@ import {
   syncBranchUpsert,
   syncBranchDelete,
   syncUserUpsert,
+  syncRolePermissionsUpsert,
   syncUserDelete,
   syncOpeningBalanceUpsert,
   syncMovementInsert,
@@ -418,17 +419,151 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (data.branches && data.branches.length > 0) setBranches(data.branches);
-        if (data.users && data.users.length > 0) setUsers(data.users);
-        if (data.products !== null) setProducts(data.products);
-        if (data.branchStocks !== null) setBranchStocks(data.branchStocks);
-        if (data.stockIns !== null) setStockIns(data.stockIns);
-        if (data.stockOuts !== null) setStockOuts(data.stockOuts);
-        if (data.sales !== null) setSales(data.sales);
-        if (data.transfers !== null) setTransfers(data.transfers);
-        if (data.expenses !== null) setExpenses(data.expenses);
-        if (data.expenseCategories && data.expenseCategories.length > 0) setExpenseCategories(data.expenseCategories);
-        if (data.openingBalances !== null) setOpeningBalances(data.openingBalances);
-        if (data.movements !== null) setStockMovements(data.movements);
+        if (data.users && data.users.length > 0) {
+          setUsers(data.users);
+          setCurrentUserState((prevUser) => {
+            const matched = data.users!.find(
+              (u) => u.id === prevUser.id || u.username === prevUser.username
+            );
+            if (matched) {
+              return {
+                ...prevUser,
+                name: matched.name,
+                email: matched.email,
+                role: matched.role,
+                branchId: matched.branchId,
+                branchName: matched.branchName,
+                permissions: matched.permissions,
+                status: matched.status,
+              };
+            }
+            return prevUser;
+          });
+        }
+        if (data.rolePermissions) {
+          setRolePermissions(data.rolePermissions);
+        }
+
+        if (data.products !== null) {
+          if (data.products.length > 0) {
+            setProducts(data.products);
+          } else {
+            setProducts((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((p) => syncProductUpsert(p));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.branchStocks !== null) {
+          if (data.branchStocks.length > 0) {
+            setBranchStocks(data.branchStocks);
+          } else {
+            setBranchStocks((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((s) => syncBranchStockUpsert(s));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.stockIns !== null) {
+          if (data.stockIns.length > 0) {
+            setStockIns(data.stockIns);
+          } else {
+            setStockIns((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((si) => syncStockInUpsert(si));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.stockOuts !== null) {
+          if (data.stockOuts.length > 0) {
+            setStockOuts(data.stockOuts);
+          } else {
+            setStockOuts((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((so) => syncStockOutUpsert(so));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.sales !== null) {
+          if (data.sales.length > 0) {
+            setSales(data.sales);
+          } else {
+            setSales((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((s) => syncSaleUpsert(s));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.transfers !== null) {
+          if (data.transfers.length > 0) {
+            setTransfers(data.transfers);
+          } else {
+            setTransfers((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((t) => syncTransferUpsert(t));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.expenses !== null) {
+          if (data.expenses.length > 0) {
+            setExpenses(data.expenses);
+          } else {
+            setExpenses((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((e) => syncExpenseUpsert(e));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.expenseCategories && data.expenseCategories.length > 0) {
+          setExpenseCategories(data.expenseCategories);
+        }
+
+        if (data.openingBalances !== null) {
+          if (data.openingBalances.length > 0) {
+            setOpeningBalances(data.openingBalances);
+          } else {
+            setOpeningBalances((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((ob) => syncOpeningBalanceUpsert(ob));
+              }
+              return prevLocal;
+            });
+          }
+        }
+
+        if (data.movements !== null) {
+          if (data.movements.length > 0) {
+            setStockMovements(data.movements);
+          } else {
+            setStockMovements((prevLocal) => {
+              if (prevLocal.length > 0) {
+                prevLocal.forEach((m) => syncMovementInsert(m));
+              }
+              return prevLocal;
+            });
+          }
+        }
       } catch (err) {
         console.warn('Real-time sync pull error:', err);
       } finally {
@@ -501,10 +636,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Unauthorized: Only Super Admin can modify role permissions.' };
     }
 
-    setRolePermissions((prev) => ({
-      ...prev,
+    const updatedRoles = {
+      ...rolePermissions,
       [role]: permissions,
-    }));
+    };
+    setRolePermissions(updatedRoles);
+    syncRolePermissionsUpsert(updatedRoles);
 
     if (applyToExistingUsers) {
       setUsers((prev) =>
