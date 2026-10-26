@@ -27,19 +27,22 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ sale, onClose }) => 
             </span>
           </div>
 
-          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2">
             <button
               onClick={handlePrint}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Print Invoice</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              aria-label="Close invoice"
+              className="inline-flex items-center space-x-1 px-3 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              title="ইনভয়েস বন্ধ করুন (Close)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
+              <span>✕ Close</span>
             </button>
           </div>
         </div>
@@ -196,8 +199,31 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ sale, onClose }) => 
             </div>
             <div className="text-center w-36">
               <div className="border-t border-slate-400 pt-1 text-[11px] font-medium">Authorized Signature</div>
+              <div className="mt-3 print:hidden">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full py-1.5 px-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center space-x-1 cursor-pointer"
+                  title="ইনভয়েস বন্ধ করতে ক্লিক করুন"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Close</span>
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* Bottom Close Bar */}
+        <div className="mt-4 flex justify-end print:hidden">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+            <span>Close</span>
+          </button>
         </div>
       </div>
     </div>

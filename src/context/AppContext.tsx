@@ -522,10 +522,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
 
-        // ── Branch Stocks ──
+        const loadedStockIns = data.stockIns !== null ? (data.stockIns.length > 0 ? data.stockIns : []) : [];
+        const loadedStockOuts = data.stockOuts !== null ? (data.stockOuts.length > 0 ? data.stockOuts : []) : [];
+        const loadedSales = data.sales !== null ? (data.sales.length > 0 ? data.sales : []) : [];
+
+        // ── Branch Stocks (Heal and sync exact Stock In from all transactions) ──
         if (data.branchStocks !== null) {
           if (data.branchStocks.length > 0) {
-            setBranchStocks(data.branchStocks);
+            const healedStocks = data.branchStocks.map((s) => {
+              // Calculate exact sum from all stockIns for this branch and product
+              const txStockIn = loadedStockIns
+                .filter((si) => si.branchId === s.branchId)
+                .reduce((sum, si) => {
+                  const iSum = (si.items || [])
+                    .filter((it) => it.productId === s.productId)
+                    .reduce((sub, it) => sub + (Number(it.quantity) || 0), 0);
+                  return sum + iSum;
+                }, 0);
+
+              const txStockOut = loadedStockOuts
+                .filter((so) => so.branchId === s.branchId)
+                .reduce((sum, so) => {
+                  const iSum = (so.items || [])
+                    .filter((it) => it.productId === s.productId)
+                    .reduce((sub, it) => sub + (Number(it.quantity) || 0), 0);
+                  return sum + iSum;
+                }, 0);
+
+              const txSold = loadedSales
+                .filter((sa) => sa.branchId === s.branchId && sa.status === 'completed')
+                .reduce((sum, sa) => {
+                  const iSum = (sa.items || [])
+                    .filter((it) => it.productId === s.productId)
+                    .reduce((sub, it) => sub + (Number(it.quantity) || 0), 0);
+                  return sum + iSum;
+                }, 0);
+
+              const effectiveIn = txStockIn > 0 ? txStockIn : (Number(s.stockIn) || 0);
+              const effectiveOut = txStockOut > 0 ? txStockOut : (Number(s.stockOut) || 0);
+              const effectiveSold = txSold > 0 ? txSold : (Number(s.quantitySold) || 0);
+
+              const currentStock = calculateCurrentStock({
+                openingStock: s.openingStock,
+                stockIn: effectiveIn,
+                stockOut: effectiveOut,
+                quantitySold: effectiveSold,
+                salesReturn: s.salesReturn,
+                purchaseReturn: s.purchaseReturn,
+              });
+
+              const updated = {
+                ...s,
+                stockIn: effectiveIn,
+                stockOut: effectiveOut,
+                quantitySold: effectiveSold,
+                currentStock,
+              };
+
+              // If stock_in or current_stock was corrected, sync to Supabase
+              if (s.stockIn !== effectiveIn || s.currentStock !== currentStock) {
+                syncBranchStockUpsert(updated);
+              }
+
+              return updated;
+            });
+
+            setBranchStocks(healedStocks);
           } else {
             setBranchStocks((prevLocal) => {
               if (prevLocal.length > 0) prevLocal.forEach((s) => syncBranchStockUpsert(s));
@@ -1303,10 +1365,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const prod = products.find((p) => p.id === item.productId);
 
       if (existing) {
-        const newCurrentStock = existing.currentStock + item.quantity;
+        const newStockIn = (existing.stockIn || 0) + item.quantity;
+        const newCurrentStock = calculateCurrentStock({
+          openingStock: existing.openingStock,
+          stockIn: newStockIn,
+          stockOut: existing.stockOut,
+          quantitySold: existing.quantitySold,
+          salesReturn: existing.salesReturn,
+          purchaseReturn: existing.purchaseReturn,
+        });
         const updatedEntry: BranchProductStock = {
           ...existing,
-          stockIn: existing.stockIn + item.quantity,
+          stockIn: newStockIn,
           currentStock: newCurrentStock,
           lastUpdated: new Date().toLocaleString(),
         };
@@ -1331,13 +1401,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           userName: currentUser.name,
         });
       } else {
-        const newCurrentStock = item.quantity;
+        const newStockIn = item.quantity;
+        const newCurrentStock = calculateCurrentStock({
+          openingStock: 0,
+          stockIn: newStockIn,
+          stockOut: 0,
+          quantitySold: 0,
+        });
         const newEntry: BranchProductStock = {
           id: `bps_${Date.now()}_${item.productId}`,
           branchId: data.branchId,
           productId: item.productId,
           openingStock: 0,
-          stockIn: item.quantity,
+          stockIn: newStockIn,
           stockOut: 0,
           quantitySold: 0,
           salesReturn: 0,

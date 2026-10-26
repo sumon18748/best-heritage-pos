@@ -26,6 +26,9 @@ export const CurrentStockView: React.FC = () => {
     products,
     branches,
     branchStocks,
+    stockIns,
+    stockOuts,
+    sales,
     currentUser,
     selectedBranchId,
     canViewProfit,
@@ -48,12 +51,55 @@ export const CurrentStockView: React.FC = () => {
       const product = products.find((p) => p.id === stock.productId);
       const branch = branches.find((b) => b.id === stock.branchId);
 
-      // Business Formula: Current Stock = Opening Stock + Stock In - Stock Out - Sold
+      // Exact calculation based on Product Code (SKU) and Product ID across all transactions
+      const prodCode = product?.sku || '';
+      const prodId = stock.productId;
+
+      // Sum all Stock In items matching this product code/id for this branch
+      const txStockIn = (stockIns || [])
+        .filter((si) => si.branchId === stock.branchId)
+        .reduce((sum, si) => {
+          const itemsSum = (si.items || [])
+            .filter((it) => it.productId === prodId || (prodCode && it.sku === prodCode))
+            .reduce((itSum, it) => itSum + (Number(it.quantity) || 0), 0);
+          return sum + itemsSum;
+        }, 0);
+
+      const stockIn = txStockIn > 0 ? txStockIn : (Number(stock.stockIn) || 0);
+
+      // Sum all Stock Out items matching this product code/id for this branch
+      const txStockOut = (stockOuts || [])
+        .filter((so) => so.branchId === stock.branchId)
+        .reduce((sum, so) => {
+          const itemsSum = (so.items || [])
+            .filter((it) => it.productId === prodId || (prodCode && it.sku === prodCode))
+            .reduce((itSum, it) => itSum + (Number(it.quantity) || 0), 0);
+          return sum + itemsSum;
+        }, 0);
+
+      const stockOut = txStockOut > 0 ? txStockOut : (Number(stock.stockOut) || 0);
+
+      // Sum all Sold items matching this product code/id for this branch
+      const txSold = (sales || [])
+        .filter((s) => s.branchId === stock.branchId && s.status === 'completed')
+        .reduce((sum, s) => {
+          const itemsSum = (s.items || [])
+            .filter((it) => it.productId === prodId || (prodCode && it.sku === prodCode))
+            .reduce((itSum, it) => itSum + (Number(it.quantity) || 0), 0);
+          return sum + itemsSum;
+        }, 0);
+
+      const quantitySold = txSold > 0 ? txSold : (Number(stock.quantitySold) || 0);
+
+      const openingStock = Number(stock.openingStock) || 0;
+
+      // Golden Business Rule Formula:
+      // Current Stock = Opening Stock + Stock In - Stock Out - Sold Qty
       const currentStock = calculateCurrentStock({
-        openingStock: stock.openingStock,
-        stockIn: stock.stockIn,
-        stockOut: stock.stockOut,
-        quantitySold: stock.quantitySold,
+        openingStock,
+        stockIn,
+        stockOut,
+        quantitySold,
         salesReturn: stock.salesReturn,
         purchaseReturn: stock.purchaseReturn,
       });
@@ -61,15 +107,31 @@ export const CurrentStockView: React.FC = () => {
       const batches = getProductBatchesForBranch(stock.branchId, stock.productId);
       const activeBatches = batches.filter((b) => b.remainingQuantity > 0);
 
+      // Calculate total valuation of remaining stock based on active batches and weighted average unit cost
+      let stockValue = 0;
+      if (activeBatches.length > 0) {
+        stockValue = activeBatches.reduce((vSum, b) => vSum + (b.remainingQuantity * b.purchasePrice), 0);
+      } else {
+        stockValue = currentStock * (product?.purchasePrice || 0);
+      }
+      stockValue = Number(stockValue.toFixed(2));
+
+      const avgUnitCost = currentStock > 0 ? Number((stockValue / currentStock).toFixed(2)) : (product?.purchasePrice || 0);
+      const hasMultipleBatchPrices = activeBatches.length > 1;
+
       const status = calculateStockAlertStatus(currentStock, stock.minAlertLevel);
-      const purchasePrice = product?.purchasePrice || 0;
+      const purchasePrice = avgUnitCost > 0 ? avgUnitCost : (product?.purchasePrice || 0);
       const sellingPrice = product?.sellingPrice || 0;
-      const stockValue = currentStock * purchasePrice;
 
       return {
         ...stock,
+        stockIn,
+        stockOut,
+        quantitySold,
         currentStock,
         activeBatches,
+        hasMultipleBatchPrices,
+        avgUnitCost,
         productName: product?.name || 'Unknown',
         sku: product?.sku || 'SKU',
         barcode: product?.barcode,
@@ -614,7 +676,16 @@ export const CurrentStockView: React.FC = () => {
                   {canViewProfit ? (
                     <>
                       <td className="py-3 px-4 text-right text-slate-700 font-medium">
-                        {row.purchasePrice > 0 ? formatCurrencyBDT(row.purchasePrice) : <span className="text-slate-300">—</span>}
+                        {row.avgUnitCost > 0 ? (
+                          <div>
+                            <div>{formatCurrencyBDT(row.avgUnitCost)}</div>
+                            {row.hasMultipleBatchPrices && (
+                              <span className="text-[9px] text-emerald-600 font-bold block">(Avg Cost)</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right font-bold text-slate-900">
                         {row.stockValue > 0 ? formatCurrencyBDT(row.stockValue) : <span className="text-slate-300">—</span>}
