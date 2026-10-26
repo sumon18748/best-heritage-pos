@@ -1,4 +1,6 @@
-﻿export interface StockCalculationParams {
+import { BranchOpeningBalance, SaleTransaction, OperatingExpense } from '../types';
+
+export interface StockCalculationParams {
   openingStock: number;
   stockIn: number;
   stockOut: number;
@@ -162,6 +164,226 @@ export function calculateCashBankBalances(params: {
   const bankBalance = Number((openingBank + bankSales - bankExpenses).toFixed(2));
 
   return { physicalCash, bankBalance };
+}
+
+export interface BranchCashMetrics {
+  branchId: string;
+  branchName: string;
+  openingCash: number;
+  openingBank: number;
+  isAutoFromPreviousDay: boolean;
+  todayCashSales: number;
+  todayBankSales: number;
+  todayCashExpenses: number;
+  todayBankExpenses: number;
+  currentPhysicalCash: number;
+  currentBankBalance: number;
+}
+
+/**
+ * Calculates a branch's opening cash (automatically rolled over from yesterday's closing cash if not manually set),
+ * today's cash sales, today's cash expenses, and current physical cash in till.
+ */
+export function calculateBranchDailyCashMetrics(params: {
+  branchId: string;
+  branchName: string;
+  targetDate: string; // YYYY-MM-DD
+  openingBalances: BranchOpeningBalance[];
+  sales: SaleTransaction[];
+  expenses: OperatingExpense[];
+}): BranchCashMetrics {
+  const { branchId, branchName, targetDate, openingBalances, sales, expenses } = params;
+
+  // 1. Explicit opening balance for targetDate
+  const explicitToday = openingBalances.find(
+    (ob) => ob.branchId === branchId && ob.date === targetDate
+  );
+
+  let openingCash = 0;
+  let openingBank = 0;
+  let isAutoFromPreviousDay = false;
+
+  if (explicitToday) {
+    openingCash = Number(explicitToday.openingCashAmount) || 0;
+    openingBank = Number(explicitToday.openingBankAmount) || 0;
+  } else {
+    // 2. Find latest opening balance before targetDate
+    const priorObs = openingBalances
+      .filter((ob) => ob.branchId === branchId && ob.date < targetDate)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const latestPriorOb = priorObs[0];
+
+    const baseCash = latestPriorOb ? Number(latestPriorOb.openingCashAmount) || 0 : 0;
+    const baseBank = latestPriorOb ? Number(latestPriorOb.openingBankAmount) || 0 : 0;
+    const baseDate = latestPriorOb ? latestPriorOb.date : '1970-01-01';
+
+    // Sum transactions before targetDate and >= baseDate
+    const priorCashSales = sales
+      .filter(
+        (s) =>
+          s.branchId === branchId &&
+          s.status === 'completed' &&
+          s.paymentMethod === 'Cash' &&
+          s.date < targetDate &&
+          s.date >= baseDate
+      )
+      .reduce((sum, s) => sum + s.totalSalesAmount, 0);
+
+    const priorBankSales = sales
+      .filter(
+        (s) =>
+          s.branchId === branchId &&
+          s.status === 'completed' &&
+          s.paymentMethod !== 'Cash' &&
+          s.date < targetDate &&
+          s.date >= baseDate
+      )
+      .reduce((sum, s) => sum + s.totalSalesAmount, 0);
+
+    const priorCashExpenses = expenses
+      .filter(
+        (e) =>
+          e.branchId === branchId &&
+          e.paymentSource === 'Physical Cash' &&
+          e.date < targetDate &&
+          e.date >= baseDate
+      )
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const priorBankExpenses = expenses
+      .filter(
+        (e) =>
+          e.branchId === branchId &&
+          e.paymentSource === 'Bank Account' &&
+          e.date < targetDate &&
+          e.date >= baseDate
+      )
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    // Closing Cash from the end of the previous day rolls over as today's Opening Cash
+    openingCash = Math.max(0, Number((baseCash + priorCashSales - priorCashExpenses).toFixed(2)));
+    openingBank = Math.max(0, Number((baseBank + priorBankSales - priorBankExpenses).toFixed(2)));
+    isAutoFromPreviousDay = true;
+  }
+
+  // 3. Transactions on targetDate
+  const todayCashSales = sales
+    .filter(
+      (s) =>
+        s.branchId === branchId &&
+        s.status === 'completed' &&
+        s.paymentMethod === 'Cash' &&
+        s.date === targetDate
+    )
+    .reduce((sum, s) => sum + s.totalSalesAmount, 0);
+
+  const todayBankSales = sales
+    .filter(
+      (s) =>
+        s.branchId === branchId &&
+        s.status === 'completed' &&
+        s.paymentMethod !== 'Cash' &&
+        s.date === targetDate
+    )
+    .reduce((sum, s) => sum + s.totalSalesAmount, 0);
+
+  const todayCashExpenses = expenses
+    .filter(
+      (e) =>
+        e.branchId === branchId &&
+        e.paymentSource === 'Physical Cash' &&
+        e.date === targetDate
+    )
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const todayBankExpenses = expenses
+    .filter(
+      (e) =>
+        e.branchId === branchId &&
+        e.paymentSource === 'Bank Account' &&
+        e.date === targetDate
+    )
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  // 4. Current physical cash in till right now
+  const currentPhysicalCash = Number((openingCash + todayCashSales - todayCashExpenses).toFixed(2));
+  const currentBankBalance = Number((openingBank + todayBankSales - todayBankExpenses).toFixed(2));
+
+  return {
+    branchId,
+    branchName,
+    openingCash,
+    openingBank,
+    isAutoFromPreviousDay,
+    todayCashSales,
+    todayBankSales,
+    todayCashExpenses,
+    todayBankExpenses,
+    currentPhysicalCash,
+    currentBankBalance,
+  };
+}
+
+/**
+ * Calculates consolidated and per-branch cash metrics across all or selected branches.
+ */
+export function calculateConsolidatedCashMetrics(params: {
+  branchIds: string[];
+  branches: { id: string; name: string }[];
+  targetDate: string;
+  openingBalances: BranchOpeningBalance[];
+  sales: SaleTransaction[];
+  expenses: OperatingExpense[];
+}): {
+  consolidated: {
+    openingCash: number;
+    openingBank: number;
+    todayCashSales: number;
+    todayBankSales: number;
+    todayCashExpenses: number;
+    todayBankExpenses: number;
+    currentPhysicalCash: number;
+    currentBankBalance: number;
+  };
+  byBranch: BranchCashMetrics[];
+} {
+  const byBranch = params.branches
+    .filter((b) => params.branchIds.includes(b.id))
+    .map((b) =>
+      calculateBranchDailyCashMetrics({
+        branchId: b.id,
+        branchName: b.name,
+        targetDate: params.targetDate,
+        openingBalances: params.openingBalances,
+        sales: params.sales,
+        expenses: params.expenses,
+      })
+    );
+
+  const consolidated = byBranch.reduce(
+    (acc, bm) => ({
+      openingCash: Number((acc.openingCash + bm.openingCash).toFixed(2)),
+      openingBank: Number((acc.openingBank + bm.openingBank).toFixed(2)),
+      todayCashSales: Number((acc.todayCashSales + bm.todayCashSales).toFixed(2)),
+      todayBankSales: Number((acc.todayBankSales + bm.todayBankSales).toFixed(2)),
+      todayCashExpenses: Number((acc.todayCashExpenses + bm.todayCashExpenses).toFixed(2)),
+      todayBankExpenses: Number((acc.todayBankExpenses + bm.todayBankExpenses).toFixed(2)),
+      currentPhysicalCash: Number((acc.currentPhysicalCash + bm.currentPhysicalCash).toFixed(2)),
+      currentBankBalance: Number((acc.currentBankBalance + bm.currentBankBalance).toFixed(2)),
+    }),
+    {
+      openingCash: 0,
+      openingBank: 0,
+      todayCashSales: 0,
+      todayBankSales: 0,
+      todayCashExpenses: 0,
+      todayBankExpenses: 0,
+      currentPhysicalCash: 0,
+      currentBankBalance: 0,
+    }
+  );
+
+  return { consolidated, byBranch };
 }
 
 export function canInitiateTransfer(

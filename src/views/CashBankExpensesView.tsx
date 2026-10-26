@@ -19,7 +19,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { ExpenseCategory, ExpensePaymentSource, OperatingExpense } from '../types';
-import { formatCurrencyBDT, calculateCashBankBalances } from '../utils/stockCalculations';
+import { formatCurrencyBDT, calculateCashBankBalances, calculateConsolidatedCashMetrics, BranchCashMetrics } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { getBangladeshTodayDateString } from '../utils/dateUtils';
@@ -61,6 +61,14 @@ export const CashBankExpensesView: React.FC = () => {
 
   // Delete Expense State (Super Admin Only)
   const [deletingExpense, setDeletingExpense] = useState<OperatingExpense | null>(null);
+
+  // Opening Balance Modal State (Auto or Manual Float)
+  const [showOpeningBalanceModal, setShowOpeningBalanceModal] = useState(false);
+  const [obBranchId, setObBranchId] = useState('');
+  const [obDate, setObDate] = useState(getBangladeshTodayDateString());
+  const [obCashAmount, setObCashAmount] = useState('');
+  const [obBankAmount, setObBankAmount] = useState('');
+  const [obNotes, setObNotes] = useState('');
 
   // Expense Form
   const [expenseForm, setExpenseForm] = useState({
@@ -104,67 +112,78 @@ export const CashBankExpensesView: React.FC = () => {
     });
   }, [expenses, currentUser, selectedBranchId, selectedCategory, selectedSource, searchQuery]);
 
-  // Financial Balances calculation
+  // Financial Balances calculation (Auto-roll over from yesterday's closing cash if not manually set)
+  const relevantBranches = targetBranchId === 'all'
+    ? branches.map((b) => b.id)
+    : [targetBranchId];
+
+  const todayStr = getBangladeshTodayDateString();
+
+  const cashMetrics = useMemo(() => {
+    return calculateConsolidatedCashMetrics({
+      branchIds: relevantBranches,
+      branches,
+      targetDate: todayStr,
+      openingBalances,
+      sales,
+      expenses,
+    });
+  }, [relevantBranches, branches, todayStr, openingBalances, sales, expenses]);
+
   const balances = useMemo(() => {
-    const relevantBranches = targetBranchId === 'all'
-      ? branches.map((b) => b.id)
-      : [targetBranchId];
+    return {
+      openingCash: cashMetrics.consolidated.openingCash,
+      openingBank: cashMetrics.consolidated.openingBank,
+      cashSales: cashMetrics.consolidated.todayCashSales,
+      bankSales: cashMetrics.consolidated.todayBankSales,
+      cashExpenses: cashMetrics.consolidated.todayCashExpenses,
+      bankExpenses: cashMetrics.consolidated.todayBankExpenses,
+      physicalCash: cashMetrics.consolidated.currentPhysicalCash,
+      bankBalance: cashMetrics.consolidated.currentBankBalance,
+      totalExpenses: cashMetrics.consolidated.todayCashExpenses + cashMetrics.consolidated.todayBankExpenses,
+      byBranch: cashMetrics.byBranch,
+      isAutoFromPreviousDay: cashMetrics.byBranch.some((b) => b.isAutoFromPreviousDay),
+    };
+  }, [cashMetrics]);
 
-    // Relevant opening balances (today's or latest)
-    const today = getBangladeshTodayDateString();
-    const obForToday = openingBalances.filter(
-      (ob) => relevantBranches.includes(ob.branchId) && ob.date === today
-    );
+  const handleOpenFloatModal = (branchId?: string) => {
+    const defaultBranch =
+      branchId ||
+      (currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || '');
+    setObBranchId(defaultBranch);
+    setObDate(getBangladeshTodayDateString());
 
-    const openingCash = obForToday.reduce((sum, b) => sum + b.openingCashAmount, 0);
-    const openingBank = obForToday.reduce((sum, b) => sum + b.openingBankAmount, 0);
+    const existingMetric = cashMetrics.byBranch.find((b) => b.branchId === defaultBranch);
+    setObCashAmount(existingMetric ? existingMetric.openingCash.toString() : '0');
+    setObBankAmount(existingMetric ? existingMetric.openingBank.toString() : '0');
+    setObNotes('');
+    setShowOpeningBalanceModal(true);
+  };
 
-    // Sales by payment method
-    const activeSales = sales.filter(
-      (s) => s.status === 'completed' && relevantBranches.includes(s.branchId)
-    );
+  const handleSaveOpeningBalance = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!obBranchId) {
+      setNotification({ type: 'error', message: 'অনুগ্রহ করে ব্রাঞ্চ সিলেক্ট করুন।' });
+      return;
+    }
+    const cashVal = parseFloat(obCashAmount) || 0;
+    const bankVal = parseFloat(obBankAmount) || 0;
 
-    const cashSales = activeSales
-      .filter((s) => s.paymentMethod === 'Cash')
-      .reduce((sum, s) => sum + s.totalSalesAmount, 0);
-
-    const bankSales = activeSales
-      .filter((s) => s.paymentMethod !== 'Cash')
-      .reduce((sum, s) => sum + s.totalSalesAmount, 0);
-
-    // Expenses by source
-    const branchExpenses = expenses.filter((e) => relevantBranches.includes(e.branchId));
-    const cashExpenses = branchExpenses
-      .filter((e) => e.paymentSource === 'Physical Cash')
-      .reduce((sum, e) => sum + e.amount, 0);
-
-    const bankExpenses = branchExpenses
-      .filter((e) => e.paymentSource === 'Bank Account')
-      .reduce((sum, e) => sum + e.amount, 0);
-
-    const calc = calculateCashBankBalances({
-      openingCash,
-      openingBank,
-      cashSales,
-      bankSales,
-      cashExpenses,
-      bankExpenses,
+    const res = recordOpeningBalance({
+      branchId: obBranchId,
+      date: obDate,
+      openingCashAmount: cashVal,
+      openingBankAmount: bankVal,
+      notes: obNotes || 'Morning float update',
     });
 
-    const totalExpenses = cashExpenses + bankExpenses;
-
-    return {
-      openingCash,
-      openingBank,
-      cashSales,
-      bankSales,
-      cashExpenses,
-      bankExpenses,
-      physicalCash: calc.physicalCash,
-      bankBalance: calc.bankBalance,
-      totalExpenses,
-    };
-  }, [branches, targetBranchId, openingBalances, sales, expenses]);
+    if (res.success) {
+      setNotification({ type: 'success', message: res.message });
+      setShowOpeningBalanceModal(false);
+    } else {
+      setNotification({ type: 'error', message: res.message });
+    }
+  };
 
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -341,8 +360,16 @@ export const CashBankExpensesView: React.FC = () => {
           </button>
 
           <button
+            onClick={() => handleOpenFloatModal()}
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+          >
+            <Coins className="w-4 h-4 text-amber-600" />
+            <span>Set / Adjust Float</span>
+          </button>
+
+          <button
             onClick={() => setShowExpenseModal(true)}
-            className="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center space-x-1.5 shadow-sm transition-colors"
+            className="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Record Expense</span>
@@ -377,8 +404,13 @@ export const CashBankExpensesView: React.FC = () => {
           <div className="mt-3 text-2xl font-bold text-slate-900 tracking-tight font-mono">
             {formatCurrencyBDT(balances.physicalCash)}
           </div>
-          <div className="mt-2 text-[11px] text-slate-500">
-            Opening Cash: <span className="font-medium text-slate-700">{formatCurrencyBDT(balances.openingCash)}</span>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+            <span>
+              Opening Cash: <span className="font-semibold text-slate-800 font-mono">{formatCurrencyBDT(balances.openingCash)}</span>
+            </span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${balances.isAutoFromPreviousDay ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+              {balances.isAutoFromPreviousDay ? '🔄 Auto Roll-over' : '✓ Manual Float'}
+            </span>
           </div>
         </div>
 
@@ -394,7 +426,7 @@ export const CashBankExpensesView: React.FC = () => {
             {formatCurrencyBDT(balances.bankBalance)}
           </div>
           <div className="mt-2 text-[11px] text-slate-500">
-            bKash, Cards & Current A/C
+            Opening Bank: <span className="font-semibold text-slate-800 font-mono">{formatCurrencyBDT(balances.openingBank)}</span>
           </div>
         </div>
 
@@ -430,6 +462,102 @@ export const CashBankExpensesView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Super Admin: Branch Cash & Opening Float Summary Table (when All Branches selected) */}
+      {targetBranchId === 'all' && balances.byBranch.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                <span>🏢 ব্রাঞ্চভিত্তিক প্রারম্ভিক ও চলতি ক্যাশ সারসংক্ষেপ (Branch Opening & Till Cash)</span>
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                প্রতিটি ব্রাঞ্চের জন্য দিন শেষের অবশিষ্ট ক্যাশ স্বয়ংক্রিয়ভাবে পরবর্তী দিনের প্রারম্ভিক ব্যালেন্স (Opening Float) হিসেবে যুক্ত হয়।
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+              {balances.byBranch.length} Branches Consolidated
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <th className="py-2.5 px-3">ব্রাঞ্চের নাম</th>
+                  <th className="py-2.5 px-3">প্রারম্ভিক ক্যাশ (Opening Float)</th>
+                  <th className="py-2.5 px-3">আজকের ক্যাশ বিক্রয়</th>
+                  <th className="py-2.5 px-3">আজকের ক্যাশ খরচ</th>
+                  <th className="py-2.5 px-3">চলতি ক্যাশ (Physical Cash)</th>
+                  <th className="py-2.5 px-3">ডিজিটাল/ব্যাংক ব্যালেন্স</th>
+                  <th className="py-2.5 px-3 text-center">ফ্লোট উৎস</th>
+                  <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {balances.byBranch.map((bm) => (
+                  <tr key={bm.branchId} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-2.5 px-3 font-semibold text-slate-900 flex items-center space-x-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      <span>{bm.branchName}</span>
+                    </td>
+                    <td className="py-2.5 px-3 font-mono font-bold text-amber-700">
+                      {formatCurrencyBDT(bm.openingCash)}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-emerald-700">
+                      +{formatCurrencyBDT(bm.todayCashSales)}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-rose-600">
+                      -{formatCurrencyBDT(bm.todayCashExpenses)}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono font-bold text-slate-900 bg-emerald-50/50">
+                      {formatCurrencyBDT(bm.currentPhysicalCash)}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-blue-700">
+                      {formatCurrencyBDT(bm.currentBankBalance)}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                        bm.isAutoFromPreviousDay
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      }`}>
+                        {bm.isAutoFromPreviousDay ? '🔄 গতকালের ক্লোজিং (Auto)' : '✓ ম্যানুয়াল ফ্লোট'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <button
+                        onClick={() => handleOpenFloatModal(bm.branchId)}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                      >
+                        ফ্লোট অ্যাডজাস্ট
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Manager or Single Branch View Notice */}
+      {targetBranchId !== 'all' && (
+        <div className="bg-amber-50/80 rounded-xl p-3.5 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900">
+          <div className="flex items-center space-x-2">
+            <Coins className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>ব্রাঞ্চ প্রারম্ভিক ক্যাশ:</strong> গতকালের দিন শেষের ক্লোজিং ক্যাশ থেকে আজকের প্রারম্ভিক ক্যাশ হিসেবে <strong>{formatCurrencyBDT(balances.openingCash)}</strong> স্বয়ংক্রিয়ভাবে ধার্য করা হয়েছে।
+            </span>
+          </div>
+          <button
+            onClick={() => handleOpenFloatModal(targetBranchId)}
+            className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-800 font-semibold rounded-lg border border-amber-300 shadow-2xs text-[11px] transition-colors cursor-pointer shrink-0"
+          >
+            ফ্লোট পরিবর্তন করুন
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -865,6 +993,134 @@ export const CashBankExpensesView: React.FC = () => {
         </div>
       )}
 
+
+      {/* Set / Adjust Opening Float Modal */}
+      {showOpeningBalanceModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Coins className="w-5 h-5 text-amber-400" />
+                <h3 className="text-sm font-bold">প্রারম্ভিক ক্যাশ ফ্লোট (Opening Float) নির্ধারণ</h3>
+              </div>
+              <button
+                onClick={() => setShowOpeningBalanceModal(false)}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOpeningBalance} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">শাখা (Branch) *</label>
+                {currentUser.role === 'manager' && currentUser.branchId ? (
+                  <input
+                    type="text"
+                    disabled
+                    value={branches.find((b) => b.id === obBranchId)?.name || currentUser.branchName || ''}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-600 font-semibold cursor-not-allowed"
+                  />
+                ) : (
+                  <select
+                    value={obBranchId}
+                    onChange={(e) => {
+                      const bId = e.target.value;
+                      setObBranchId(bId);
+                      const m = cashMetrics.byBranch.find((b) => b.branchId === bId);
+                      if (m) {
+                        setObCashAmount(m.openingCash.toString());
+                        setObBankAmount(m.openingBank.toString());
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium"
+                    required
+                  >
+                    <option value="">ব্রাঞ্চ নির্বাচন করুন</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">তারিখ (Date) *</label>
+                <input
+                  type="date"
+                  value={obDate}
+                  onChange={(e) => setObDate(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    ক্যাশ ইন ড্রয়ার (Tk) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={obCashAmount}
+                    onChange={(e) => setObCashAmount(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-amber-700"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">সকালের ফিজিক্যাল ক্যাশ</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    ব্যাংক/ডিজিটাল (Tk)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={obBankAmount}
+                    onChange={(e) => setObBankAmount(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-blue-700"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">bKash, ব্যাংক শুরু</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">মন্তব্য (Remarks / Notes)</label>
+                <input
+                  type="text"
+                  placeholder="যেমন: অতিরিক্ত চেঞ্জ বা ফ্লোট ক্যাশ ড্রয়ারে রাখা হলো"
+                  value={obNotes}
+                  onChange={(e) => setObNotes(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOpeningBalanceModal(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-sm transition-colors cursor-pointer flex items-center space-x-1"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>সংরক্ষণ করুন</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

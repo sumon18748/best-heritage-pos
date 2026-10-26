@@ -26,7 +26,7 @@ import {
   Check,
 } from 'lucide-react';
 import { MainCategoryName } from '../types';
-import { calculateStockAlertStatus, formatCurrencyBDT, calculateNetProfit, calculateCashBankBalances } from '../utils/stockCalculations';
+import { calculateStockAlertStatus, formatCurrencyBDT, calculateNetProfit, calculateCashBankBalances, calculateConsolidatedCashMetrics } from '../utils/stockCalculations';
 import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 export const DashboardView: React.FC = () => {
@@ -54,6 +54,7 @@ export const DashboardView: React.FC = () => {
 
   // Recent transactions tab state
 
+  const isSuperAdmin = currentUser.role === 'super_admin';
   const isBranchRestricted = currentUser.role === 'manager' && !!currentUser.branchId;
   const effectiveBranchId = isBranchRestricted ? currentUser.branchId! : selectedBranchId;
   const isAllBranches = effectiveBranchId === 'all';
@@ -98,25 +99,31 @@ export const DashboardView: React.FC = () => {
   const todayGrossProfit = todaySales.reduce((sum, s) => sum + s.grossProfit, 0);
   const todayExpensesAmount = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  // Cash and Bank Balances
+  // Cash and Bank Balances (Auto-roll over from yesterday's closing cash if not manually set)
   const activeBranchList = isAllBranches ? branches.map((b) => b.id) : [effectiveBranchId];
-  const obForToday = openingBalances.filter((ob) => activeBranchList.includes(ob.branchId) && ob.date === todayStr);
-  const openingCash = obForToday.reduce((sum, b) => sum + b.openingCashAmount, 0);
-  const openingBank = obForToday.reduce((sum, b) => sum + b.openingBankAmount, 0);
 
-  const cashSales = relevantSales.filter((s) => s.paymentMethod === 'Cash').reduce((sum, s) => sum + s.totalSalesAmount, 0);
-  const bankSales = relevantSales.filter((s) => s.paymentMethod !== 'Cash').reduce((sum, s) => sum + s.totalSalesAmount, 0);
-  const cashExpenses = relevantExpenses.filter((e) => e.paymentSource === 'Physical Cash').reduce((sum, e) => sum + e.amount, 0);
-  const bankExpenses = relevantExpenses.filter((e) => e.paymentSource === 'Bank Account').reduce((sum, e) => sum + e.amount, 0);
+  const cashMetrics = useMemo(() => {
+    return calculateConsolidatedCashMetrics({
+      branchIds: activeBranchList,
+      branches,
+      targetDate: todayStr,
+      openingBalances,
+      sales,
+      expenses,
+    });
+  }, [activeBranchList, branches, todayStr, openingBalances, sales, expenses]);
 
-  const cashBankBalances = calculateCashBankBalances({
-    openingCash,
-    openingBank,
-    cashSales,
-    bankSales,
-    cashExpenses,
-    bankExpenses,
-  });
+  const openingCash = cashMetrics.consolidated.openingCash;
+  const openingBank = cashMetrics.consolidated.openingBank;
+  const cashSales = cashMetrics.consolidated.todayCashSales;
+  const bankSales = cashMetrics.consolidated.todayBankSales;
+  const cashExpenses = cashMetrics.consolidated.todayCashExpenses;
+  const bankExpenses = cashMetrics.consolidated.todayBankExpenses;
+
+  const cashBankBalances = {
+    physicalCash: cashMetrics.consolidated.currentPhysicalCash,
+    bankBalance: cashMetrics.consolidated.currentBankBalance,
+  };
 
   // Comprehensive Alerts
   const targetBranchesForAlerts = isAllBranches ? branches : branches.filter((b) => b.id === effectiveBranchId);
@@ -306,13 +313,14 @@ export const DashboardView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 1. Opening Cash */}
             <div
-              className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden"
+              onClick={() => setActiveTab('expenses')}
+              className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-amber-300 transition-all cursor-pointer group relative overflow-hidden"
             >
               <div className="flex items-start justify-between">
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Starting Balance</span>
                   <h3 className="text-base font-bold text-slate-900 mt-0.5">Opening Cash</h3>
-                  <p className="text-xs text-slate-400">Morning Drawer Float</p>
+                  <p className="text-xs text-slate-400">{isAllBranches ? 'Consolidated All Branches' : 'Morning Drawer Float'}</p>
                 </div>
                 <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-200">
                   <Coins className="w-5 h-5" />
@@ -323,7 +331,11 @@ export const DashboardView: React.FC = () => {
                   {formatCurrencyBDT(openingCash)}
                 </p>
                 <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Drawer Opening Balance</span>
+                  <span>
+                    {cashMetrics.byBranch.some((b) => b.isAutoFromPreviousDay)
+                      ? '🔄 গতকালের ক্লোজিং থেকে অটো যুক্ত'
+                      : 'নির্ধারিত ওপেনিং ব্যালেন্স'}
+                  </span>
                   <span className="text-emerald-700 font-semibold group-hover:underline">Update Float →</span>
                 </div>
               </div>
@@ -466,7 +478,9 @@ export const DashboardView: React.FC = () => {
               <div>
                 <p className="text-xs font-medium text-slate-500">Physical Cash in Till</p>
                 <p className="text-2xl font-bold text-emerald-700 mt-1 font-mono">{formatCurrencyBDT(cashBankBalances.physicalCash)}</p>
-                <span className="text-[11px] text-slate-400">Opening: {formatCurrencyBDT(openingCash)}</span>
+                <span className="text-[11px] text-slate-400">
+                  Opening: {formatCurrencyBDT(openingCash)} ({cashMetrics.byBranch.some((b) => b.isAutoFromPreviousDay) ? 'Auto' : 'Set'})
+                </span>
               </div>
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <Coins className="w-5 h-5" />
@@ -620,6 +634,53 @@ export const DashboardView: React.FC = () => {
               </>
             )}
           </div>
+
+          {/* Super Admin: Branch Cash & Opening Float Quick Strip */}
+          {isSuperAdmin && isAllBranches && cashMetrics.byBranch.length > 0 && (
+            <div className="mt-4 bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Coins className="w-4 h-4 text-amber-600" />
+                  <span className="text-xs font-bold text-slate-800">
+                    🏢 শাখাভিত্তিক প্রারম্ভিক ক্যাশ ও চলতি ড্রয়ার ক্যাশ (Branch Opening & Till Cash)
+                  </span>
+                </div>
+                <button
+                  onClick={() => setActiveTab('expenses')}
+                  className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+                >
+                  ক্যাশ ও ব্যাংক বিস্তারিত →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                {cashMetrics.byBranch.map((bm) => (
+                  <div
+                    key={bm.branchId}
+                    onClick={() => setActiveTab('expenses')}
+                    className="p-3 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-200 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span>{bm.branchName}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                        {bm.isAutoFromPreviousDay ? '🔄 Auto Roll-over' : '✓ Manual Float'}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-slate-200/60 font-mono">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">ওপেনিং ক্যাশ</span>
+                        <span className="font-bold text-amber-700">{formatCurrencyBDT(bm.openingCash)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">চলতি ড্রয়ার ক্যাশ</span>
+                        <span className="font-bold text-emerald-700">{formatCurrencyBDT(bm.currentPhysicalCash)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

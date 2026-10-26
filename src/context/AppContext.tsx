@@ -2988,10 +2988,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: data.notes || '',
       setByUserId: currentUser.id,
       setByName: currentUser.name,
-      createdAt: new Date().toLocaleString(),
+      createdAt: new Date().toISOString(),
     };
 
-    setOpeningBalances((prev) => [newRec, ...prev]);
+    setOpeningBalances((prev) => [newRec, ...prev.filter((ob) => !(ob.branchId === data.branchId && ob.date === data.date))]);
     syncOpeningBalanceUpsert(newRec);
     return { success: true, message: `Opening balance for ${branch.name} saved successfully.` };
   };
