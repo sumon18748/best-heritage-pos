@@ -1,0 +1,661 @@
+import React, { useState, useMemo } from 'react';
+import { useApp } from '../context/AppContext';
+import { StockOutReason, MainCategoryName } from '../types';
+import {
+  ArrowUpFromLine,
+  Plus,
+  Search,
+  Calendar,
+  AlertTriangle,
+  Check,
+  X,
+  FileText,
+  Boxes,
+  FileSpreadsheet,
+  Download,
+  Sparkles,
+  Apple,
+  Flame,
+} from 'lucide-react';
+import { canStockOut } from '../utils/stockCalculations';
+import { exportReportToExcel } from '../utils/excelExport';
+import { exportReportToPdf } from '../utils/pdfExport';
+
+export const StockOutView: React.FC = () => {
+  const {
+    products,
+    branches,
+    branchStocks,
+    stockOuts,
+    createStockOut,
+    currentUser,
+    selectedBranchId,
+    selectedCategoryName,
+  } = useApp();
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>(selectedCategoryName || 'all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Form state
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [formDate, setFormDate] = useState(todayStr);
+  const [formBranchId, setFormBranchId] = useState(
+    currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''
+  );
+  const [formCategory, setFormCategory] = useState<MainCategoryName>('Cosmetic Products');
+  const [formProductId, setFormProductId] = useState('');
+  const [formQuantity, setFormQuantity] = useState('1');
+  const [formReason, setFormReason] = useState<StockOutReason>('Damaged Product');
+  const [formReferenceDoc, setFormReferenceDoc] = useState('');
+  const [formRemarks, setFormRemarks] = useState('');
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Products eligible in selected form category
+  const categoryProducts = useMemo(() => {
+    return products.filter((p) => p.categoryName === formCategory && p.status === 'active');
+  }, [products, formCategory]);
+
+  // When form category changes or modal opens, pick first product
+  const handleCategoryChange = (newCat: MainCategoryName) => {
+    setFormCategory(newCat);
+    const catProds = products.filter((p) => p.categoryName === newCat && p.status === 'active');
+    setFormProductId(catProds[0]?.id || '');
+  };
+
+  const openNewStockOut = (preselectedCategory?: MainCategoryName) => {
+    const cat = preselectedCategory || (activeCategoryTab !== 'all' ? (activeCategoryTab as MainCategoryName) : 'Cosmetic Products');
+    setFormCategory(cat);
+    const catProds = products.filter((p) => p.categoryName === cat && p.status === 'active');
+    setFormProductId(catProds[0]?.id || '');
+    setFormQuantity('1');
+    setFormReason('Damaged Product');
+    setFormReferenceDoc('');
+    setFormRemarks('');
+    setFormError('');
+    setFormSuccess('');
+    setIsModalOpen(true);
+  };
+
+  // Get current stock for selected product and branch
+  const selectedProductStock = useMemo(() => {
+    if (!formProductId) return 0;
+    return branchStocks.find(
+      (s) => s.branchId === formBranchId && s.productId === formProductId
+    )?.currentStock || 0;
+  }, [branchStocks, formBranchId, formProductId]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setFormError('');
+    setFormSuccess('');
+
+    if (!formProductId) {
+      setFormError('Please select a product.');
+      return;
+    }
+
+    const qty = parseInt(formQuantity) || 0;
+    const check = canStockOut(selectedProductStock, qty);
+    if (!check.allowed) {
+      setFormError(check.message || 'Cannot stock out requested quantity.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = createStockOut({
+        date: formDate,
+        branchId: formBranchId,
+        reason: formReason,
+        referenceDocNo: formReferenceDoc.trim() || undefined,
+        remarks: formRemarks.trim() || undefined,
+        items: [
+          {
+            productId: formProductId,
+            quantity: qty,
+          },
+        ],
+      });
+
+      if (res.success) {
+        setFormSuccess(res.message);
+        setTimeout(() => {
+          setIsModalOpen(false);
+          setFormRemarks('');
+          setFormReferenceDoc('');
+          setFormQuantity('1');
+        }, 600);
+      } else {
+        setFormError(res.message);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isBranchRestricted = currentUser.role === 'manager' && !!currentUser.branchId;
+  const effectiveBranchId = isBranchRestricted ? currentUser.branchId! : selectedBranchId;
+
+  // Filter history
+  const filteredStockOuts = useMemo(() => {
+    return stockOuts.filter((stk) => {
+      const matchesBranch = effectiveBranchId === 'all' || stk.branchId === effectiveBranchId;
+      const matchesCategory =
+        activeCategoryTab === 'all' ||
+        stk.items.some((i) => i.categoryName === activeCategoryTab);
+
+      const matchesSearch =
+        stk.referenceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (stk.referenceDocNo && stk.referenceDocNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        stk.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        stk.items.some((i) => i.productName.toLowerCase().includes(searchTerm.toLowerCase()) || i.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      return matchesBranch && matchesCategory && matchesSearch;
+    });
+  }, [stockOuts, effectiveBranchId, activeCategoryTab, searchTerm]);
+
+  const activeBranchLabel = isBranchRestricted
+    ? currentUser.branchName || 'Assigned Branch'
+    : effectiveBranchId === 'all'
+    ? 'All Branches (Consolidated)'
+    : branches.find((b) => b.id === effectiveBranchId)?.name || 'Selected Branch';
+
+  const exportHeaders = ['Date', 'SOUT Ref', 'Branch', 'Category', 'Reason', 'Ref Doc', 'Items Deducted', 'Total Quantity', 'Remarks', 'Authorized By'];
+  const exportRows = filteredStockOuts.map((tx) => [
+    tx.date,
+    tx.referenceNo,
+    tx.branchName,
+    tx.items[0]?.categoryName || 'General',
+    tx.reason,
+    tx.referenceDocNo || '—',
+    tx.items.map((i) => `${i.productName} (${i.quantity} units)`).join('; '),
+    tx.totalQuantity,
+    tx.remarks || '—',
+    tx.createdByName,
+  ]);
+
+  const handleExportExcel = () => {
+    const totalOutQty = filteredStockOuts.reduce((sum, t) => sum + t.totalQuantity, 0);
+
+    exportReportToExcel({
+      reportTitle: 'Stock Out & Adjustments Report',
+      branchName: activeBranchLabel,
+      categoryFilter: activeCategoryTab === 'all' ? 'All Categories' : activeCategoryTab,
+      generatedBy: `${currentUser.name} (${currentUser.role.replace('_', ' ')})`,
+      headers: exportHeaders,
+      dataRows: exportRows,
+      summaryStats: [
+        { label: 'Total Adjustment Events', value: `${filteredStockOuts.length} entries` },
+        { label: 'Total Units Deducted', value: `${totalOutQty} units` },
+      ],
+    });
+  };
+
+  const handleExportPdf = () => {
+    const totalOutQty = filteredStockOuts.reduce((sum, t) => sum + t.totalQuantity, 0);
+
+    const pdfHeaders = ['Date', 'SOUT Ref', 'Branch', 'Category', 'Reason', 'Qty Deducted', 'Doc / Remarks', 'Authorized By'];
+    const pdfRows = filteredStockOuts.map((tx) => [
+      tx.date,
+      tx.referenceNo,
+      tx.branchName,
+      tx.items[0]?.categoryName || 'General',
+      tx.reason,
+      tx.totalQuantity,
+      tx.remarks || tx.referenceDocNo || '—',
+      tx.createdByName,
+    ]);
+
+    exportReportToPdf({
+      reportTitle: 'Stock Out & Adjustments Report',
+      branchName: activeBranchLabel,
+      categoryFilter: activeCategoryTab === 'all' ? 'All Categories' : activeCategoryTab,
+      generatedBy: currentUser.name,
+      headers: pdfHeaders,
+      dataRows: pdfRows,
+      summaryStats: [
+        { label: 'Total Adjustment Events', value: filteredStockOuts.length },
+        { label: 'Total Units Deducted', value: totalOutQty },
+      ],
+    });
+  };
+
+  const getReasonBadge = (reason: StockOutReason) => {
+    switch (reason) {
+      case 'Damaged Product':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">Damaged</span>;
+      case 'Internal Use':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">Internal Use</span>;
+      case 'Lost Product':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-800 border border-red-200">Lost</span>;
+      case 'Authorized Adjustment':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">Adjustment</span>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center space-x-2">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Stock Out — Deductions & Write-Offs</h1>
+            <span className="text-xs bg-amber-50 text-amber-700 font-semibold px-2.5 py-0.5 rounded-full border border-amber-200">
+              Adjustment & Write-Off
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Category-wise stock deductions for damaged products, internal samples, or authorized adjustments with zero negative stock enforcement.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={handleExportExcel}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Excel (.xlsx)</span>
+          </button>
+
+          <button
+            onClick={handleExportPdf}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
+          >
+            <FileText className="w-4 h-4 text-rose-600" />
+            <span>PDF (.pdf)</span>
+          </button>
+
+          <button
+            onClick={() => openNewStockOut()}
+            className="inline-flex items-center space-x-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Stock Out Entry</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Category Selection Tabs for Stock Out */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center space-x-1.5 bg-slate-100/80 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveCategoryTab('all')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              activeCategoryTab === 'all'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            All Stock Outs ({stockOuts.length})
+          </button>
+
+          <button
+            onClick={() => setActiveCategoryTab('Cosmetic Products')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all ${
+              activeCategoryTab === 'Cosmetic Products'
+                ? 'bg-pink-600 text-white shadow-xs'
+                : 'text-pink-700 hover:bg-pink-50'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Cosmetic Products</span>
+          </button>
+
+          <button
+            onClick={() => setActiveCategoryTab('Food Products')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all ${
+              activeCategoryTab === 'Food Products'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-amber-800 hover:bg-amber-50'
+            }`}
+          >
+            <Apple className="w-3.5 h-3.5" />
+            <span>Food Products</span>
+          </button>
+
+          <button
+            onClick={() => setActiveCategoryTab('Perfume Products')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all ${
+              activeCategoryTab === 'Perfume Products'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'text-purple-800 hover:bg-purple-50'
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5" />
+            <span>Perfume Products</span>
+          </button>
+        </div>
+
+        {/* Quick Out buttons by category */}
+        <div className="hidden lg:flex items-center space-x-1.5 pr-2">
+          <span className="text-[11px] text-slate-400 font-medium">Quick Out:</span>
+          <button
+            onClick={() => openNewStockOut('Cosmetic Products')}
+            className="px-2.5 py-1 text-[11px] font-semibold text-pink-700 bg-pink-50 hover:bg-pink-100 rounded-lg border border-pink-200"
+          >
+            - Cosmetic
+          </button>
+          <button
+            onClick={() => openNewStockOut('Food Products')}
+            className="px-2.5 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200"
+          >
+            - Food
+          </button>
+          <button
+            onClick={() => openNewStockOut('Perfume Products')}
+            className="px-2.5 py-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200"
+          >
+            - Perfume
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and Search */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by SOUT Reference, reason, product, ref doc..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-800"
+          />
+        </div>
+      </div>
+
+      {/* Stock Out History Table */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-600">
+            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="py-3 px-4">Ref No & Date</th>
+                <th className="py-3 px-4">Branch</th>
+                <th className="py-3 px-4">Category</th>
+                <th className="py-3 px-4">Reason</th>
+                <th className="py-3 px-4">Deducted Product</th>
+                <th className="py-3 px-4 text-center">Quantity Deducted</th>
+                <th className="py-3 px-4">Doc / Remarks</th>
+                <th className="py-3 px-4 text-right">Authorized By</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredStockOuts.map((tx) => (
+                <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-4">
+                    <span className="font-bold text-slate-900 font-mono block">{tx.referenceNo}</span>
+                    <span className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5">
+                      <Calendar className="w-3 h-3" />
+                      <span>{tx.date}</span>
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 font-medium text-slate-800">
+                    {tx.branchName}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                      {tx.items[0]?.categoryName || 'General'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    {getReasonBadge(tx.reason)}
+                  </td>
+                  <td className="py-3 px-4">
+                    {tx.items.map((it) => (
+                      <div key={it.id} className="text-xs">
+                        <span className="font-semibold text-slate-900">{it.productName}</span>
+                        <span className="text-slate-400 font-mono ml-1.5">({it.sku})</span>
+                      </div>
+                    ))}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      -{tx.totalQuantity} units
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    {tx.referenceDocNo && (
+                      <div className="font-mono text-[11px] text-slate-700">Doc: {tx.referenceDocNo}</div>
+                    )}
+                    {tx.remarks && <div className="text-[11px] text-slate-500 italic">{tx.remarks}</div>}
+                  </td>
+                  <td className="py-3 px-4 text-right text-[11px] text-slate-500">
+                    {tx.createdByName}
+                  </td>
+                </tr>
+              ))}
+
+              {filteredStockOuts.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
+                    No stock out records found matching current category.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* New Stock Out Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
+              <ArrowUpFromLine className="w-5 h-5 text-amber-600" />
+              <span>Stock Out — Deduct Products from Inventory</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Select category and product. Deduction strictly validated against available branch stock.
+            </p>
+
+            {formError && (
+              <div className="mt-3 p-2 bg-rose-50 text-rose-700 text-xs rounded-lg border border-rose-200">
+                {formError}
+              </div>
+            )}
+            {formSuccess && (
+              <div className="mt-3 p-2 bg-emerald-50 text-emerald-700 text-xs rounded-lg border border-emerald-200 flex items-center space-x-1">
+                <Check className="w-4 h-4" />
+                <span>{formSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+              {/* Category selector */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
+                  1. Select Category *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCategoryChange('Cosmetic Products')}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 border transition-all ${
+                      formCategory === 'Cosmetic Products'
+                        ? 'bg-pink-600 text-white border-pink-700 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Cosmetics</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCategoryChange('Food Products')}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 border transition-all ${
+                      formCategory === 'Food Products'
+                        ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Apple className="w-3.5 h-3.5" />
+                    <span>Food</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCategoryChange('Perfume Products')}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 border transition-all ${
+                      formCategory === 'Perfume Products'
+                        ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>Perfumes</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Branch *</label>
+                  {currentUser.role === 'manager' ? (
+                    <div className="px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-semibold">
+                      {currentUser.branchName}
+                    </div>
+                  ) : (
+                    <select
+                      value={formBranchId}
+                      onChange={(e) => setFormBranchId(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white font-medium"
+                    >
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">2. Select {formCategory} *</label>
+                <select
+                  required
+                  value={formProductId}
+                  onChange={(e) => setFormProductId(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white font-medium"
+                >
+                  <option value="">-- Choose Product --</option>
+                  {categoryProducts.map((p) => {
+                    const stock = branchStocks.find(
+                      (s) => s.branchId === formBranchId && s.productId === p.id
+                    )?.currentStock || 0;
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku}) — Available: {stock} units
+                      </option>
+                    );
+                  })}
+                </select>
+
+                <div className="mt-1 flex items-center justify-between text-[11px] px-1">
+                  <span className="text-slate-500">Available in branch:</span>
+                  <span className={`font-bold ${selectedProductStock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    {selectedProductStock} units on-hand
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity to Deduct *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedProductStock}
+                    required
+                    value={formQuantity}
+                    onChange={(e) => setFormQuantity(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg font-bold focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Reason for Stock Out *</label>
+                  <select
+                    value={formReason}
+                    onChange={(e) => setFormReason(e.target.value as StockOutReason)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white font-medium"
+                  >
+                    <option value="Damaged Product">Damaged Product</option>
+                    <option value="Internal Use">Internal Use</option>
+                    <option value="Lost Product">Lost Product</option>
+                    <option value="Authorized Adjustment">Authorized Adjustment</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Reference Document Number (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. QC-DMG-012, INT-REQUISITION-4"
+                  value={formReferenceDoc}
+                  onChange={(e) => setFormReferenceDoc(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Remarks / Explanation</label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain reason for write-off..."
+                  value={formRemarks}
+                  onChange={(e) => setFormRemarks(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={selectedProductStock <= 0}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white shadow-sm"
+                >
+                  Confirm Stock Out
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

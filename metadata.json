@@ -1,0 +1,6 @@
+{
+  "name": "Best Heritage - Multi-Branch Stock & Sales Management",
+  "description": "Simple, modern, and user-friendly multi-branch stock, inventory, and sales management software for Best Heritage Group.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
