@@ -31,7 +31,11 @@ interface NavItem {
   requiredRole?: 'super_admin' | 'admin';
 }
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  onItemClick?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
   const { activeTab, setActiveTab, currentUser, branchStocks, selectedBranchId, transfers, userPermissions, logout } = useApp();
 
   const relevantStocks = selectedBranchId === 'all'
@@ -119,8 +123,11 @@ export const Sidebar: React.FC = () => {
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+              onClick={() => {
+                setActiveTab(item.id);
+                onItemClick?.();
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 isActive
                   ? 'bg-emerald-600 text-white shadow-sm font-semibold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
@@ -147,8 +154,11 @@ export const Sidebar: React.FC = () => {
       {/* Logout button at bottom of sidebar */}
       <div className="p-3 border-t border-slate-800">
         <button
-          onClick={logout}
-          className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-900/40 transition-colors cursor-pointer"
+          onClick={() => {
+            logout();
+            onItemClick?.();
+          }}
+          className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-900/40 transition-colors cursor-pointer"
         >
           <LogOut className="w-4 h-4 text-rose-400" />
           <span>Sign Out</span>

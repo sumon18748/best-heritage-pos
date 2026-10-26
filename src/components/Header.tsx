@@ -260,40 +260,42 @@ export const Header: React.FC = () => {
 
   return (
     <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 shadow-sm w-full shrink-0">
-      <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Left: Branding directly above menu bar */}
+      <div className="w-full px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+        {/* Left: Branding */}
         <div
-          className="flex items-center space-x-3 cursor-pointer select-none md:w-64 shrink-0"
+          className="flex items-center space-x-2.5 cursor-pointer select-none shrink-0"
           onClick={() => setActiveTab('dashboard')}
         >
           <img
             src="/logo.jpg"
             alt="Best Heritage"
-            className="w-11 h-11 rounded-lg object-cover bg-emerald-950 p-0.5 border border-emerald-500/40 shadow-md shrink-0 ring-1 ring-emerald-400/20"
+            className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg object-cover bg-emerald-950 p-0.5 border border-emerald-500/40 shadow-md shrink-0 ring-1 ring-emerald-400/20"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 hidden sm:block">
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-lg tracking-tight text-white font-serif whitespace-nowrap">
+              <span className="font-bold text-base sm:text-lg tracking-tight text-white font-serif whitespace-nowrap">
                 BEST HERITAGE
               </span>
               <span className="hidden xl:inline-block text-[10px] bg-emerald-950 text-emerald-300 font-semibold px-2 py-0.5 rounded border border-emerald-700/60 uppercase tracking-wider whitespace-nowrap">
                 Foods & Group
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 leading-tight whitespace-nowrap">
+            <p className="text-[11px] text-slate-400 leading-tight whitespace-nowrap hidden md:block">
               Multi-Branch Stock & Sales Management
             </p>
           </div>
+          {/* Mobile: just show text name */}
+          <span className="sm:hidden font-bold text-sm tracking-tight text-white font-serif whitespace-nowrap">BEST HERITAGE</span>
         </div>
 
         {/* Center: Branch Selector */}
-        <div className="hidden md:flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700">
-          <Building2 className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs text-slate-400 font-medium">Branch:</span>
+        <div className="hidden md:flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700 min-w-0 flex-1 max-w-xs lg:max-w-sm xl:max-w-none xl:flex-none">
+          <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="text-xs text-slate-400 font-medium shrink-0">Branch:</span>
           {isBranchRestricted ? (
-            <div className="flex items-center space-x-1.5 text-xs font-semibold text-amber-300">
-              <span>{currentUser.branchName || 'Assigned Branch'}</span>
-              <span className="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-700/50">
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-amber-300 min-w-0">
+              <span className="truncate">{currentUser.branchName || 'Assigned Branch'}</span>
+              <span className="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-700/50 shrink-0">
                 Locked
               </span>
             </div>
@@ -302,7 +304,7 @@ export const Header: React.FC = () => {
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value)}
               aria-label="Filter active branch"
-              className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer pr-2"
+              className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer pr-2 min-w-0 w-full"
             >
               <option value="all" className="bg-slate-900 text-white">All Branches (Consolidated)</option>
               {branches.map((b) => (
@@ -315,11 +317,11 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Right: New Sale (POS), Notifications & User Profile */}
-        <div className="flex items-center space-x-2.5 sm:space-x-3.5">
-          {/* New Sale (POS) Button */}
+        <div className="flex items-center space-x-1.5 sm:space-x-2.5">
+          {/* New Sale (POS) Button — hidden on mobile (available in sub-bar) */}
           <button
             onClick={() => setActiveTab('sales-entry')}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+            className="hidden md:inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-xs transition-colors cursor-pointer"
             title="Create New Sale (POS)"
           >
             <ShoppingCart className="w-3.5 h-3.5 text-white" />
@@ -333,7 +335,7 @@ export const Header: React.FC = () => {
                 setNotificationDropdownOpen(!notificationDropdownOpen);
                 setUserDropdownOpen(false);
               }}
-              className="relative p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              className="relative p-2 text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 rounded-lg transition-colors cursor-pointer"
               title="System Notifications"
               aria-label="System Notifications"
             >
@@ -346,7 +348,7 @@ export const Header: React.FC = () => {
             </button>
 
             {notificationDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 py-0 z-50 text-slate-900 overflow-hidden animate-in fade-in duration-150">
+              <div className="absolute right-0 mt-2 w-[min(380px,90vw)] sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 py-0 z-50 text-slate-900 overflow-hidden animate-in fade-in duration-150">
                 {/* Notification Dropdown Header */}
                 <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -496,9 +498,9 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Cloud Database Status Badge */}
-          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-950/60 border border-emerald-500/30 rounded-full text-emerald-400 text-[11px] font-semibold">
+          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-950/60 border border-emerald-500/30 rounded-full text-emerald-400 text-[11px] font-semibold shrink-0">
             <span className={`w-1.5 h-1.5 rounded-full ${isCloudSyncing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
-            <span>{isCloudSyncing ? 'Syncing...' : 'Live Cloud DB'}</span>
+            <span className="hidden lg:inline">{isCloudSyncing ? 'Syncing...' : 'Live Cloud DB'}</span>
           </div>
 
           {/* User Profile & Switcher Dropdown */}
@@ -508,14 +510,14 @@ export const Header: React.FC = () => {
                 setUserDropdownOpen(!userDropdownOpen);
                 setNotificationDropdownOpen(false);
               }}
-              className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700/80 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors text-left cursor-pointer"
+              className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700/80 active:bg-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors text-left cursor-pointer"
               aria-label="User Account Menu"
             >
-              <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold text-white shadow-sm">
+              <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0">
                 {currentUser.name.charAt(0)}
               </div>
               <div className="hidden lg:block text-left">
-                <div className="text-xs font-medium text-white truncate max-w-[130px]">{currentUser.name}</div>
+                <div className="text-xs font-medium text-white truncate max-w-[120px]">{currentUser.name}</div>
                 <div className="text-[10px] text-slate-400 capitalize">{currentUser.role.replace('_', ' ')}</div>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -525,14 +527,14 @@ export const Header: React.FC = () => {
             <button
               onClick={logout}
               title="Sign Out"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
               aria-label="Sign Out"
             >
               <LogOut className="w-4 h-4" />
             </button>
 
             {userDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50 text-slate-900 animate-in fade-in duration-150">
+              <div className="absolute right-0 mt-2 w-[min(288px,90vw)] bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50 text-slate-900 animate-in fade-in duration-150">
                 {/* Logged in User Card */}
                 <div className="px-4 py-2.5 border-b border-slate-100">
                   <p className="text-[11px] text-slate-400 font-medium">Signed in as:</p>
@@ -593,11 +595,11 @@ export const Header: React.FC = () => {
       {/* Profile & Password Modal */}
       {showProfileModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4"
           onClick={() => setShowProfileModal(false)}
         >
           <div
-            className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden text-slate-800 animate-in fade-in duration-150"
+            className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden text-slate-800 animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}

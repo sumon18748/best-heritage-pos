@@ -197,7 +197,7 @@ export const DashboardView: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {categoryStats.map((cat) => {
               const Icon = cat.icon;
               return (
@@ -591,7 +591,7 @@ export const DashboardView: React.FC = () => {
       )}
 
       {/* 3. Urgent Alerts & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left: Critical Stock Alerts */}
         <div className="lg:col-span-1 bg-white rounded-2xl shadow-xs border border-slate-200 p-5 flex flex-col justify-between">
           <div>
@@ -681,7 +681,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         {/* Right: Recent Transactions Table */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-xs border border-slate-200 p-5">
+        <div className="xl:col-span-2 bg-white rounded-2xl shadow-xs border border-slate-200 p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
             <div className="flex items-center space-x-2">
               <h3 className="text-sm font-bold text-slate-800">Recent Transactions</h3>

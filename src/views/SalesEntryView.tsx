@@ -361,16 +361,16 @@ export const SalesEntryView: React.FC = () => {
       )}
 
       {/* POS Top Category Quick-Tabs */}
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center space-x-1.5 bg-slate-100/80 p-1 rounded-xl">
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div className="flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto no-scrollbar w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setPosCategory('all')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            className={`shrink-0 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
               posCategory === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            All Categories
+            All
           </button>
           <button
             type="button"
@@ -405,7 +405,7 @@ export const SalesEntryView: React.FC = () => {
         </div>
 
         {/* Catalog search */}
-        <div className="relative min-w-[240px]">
+        <div className="relative w-full sm:min-w-[240px] sm:w-auto">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2" />
           <input
             type="text"
@@ -418,9 +418,9 @@ export const SalesEntryView: React.FC = () => {
       </div>
 
       {/* Main Billing Form Grid */}
-      <form onSubmit={handleCompleteSale} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <form onSubmit={handleCompleteSale} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left Column: Invoice Config & Bill Line Items (2 spans) */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="xl:col-span-2 space-y-4">
           {/* Metadata Card */}
           <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center space-x-1.5">
@@ -789,8 +789,8 @@ export const SalesEntryView: React.FC = () => {
         </div>
 
         {/* Right Column: Invoice Calculation & Profit (Strictly Masked for Manager) */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sticky top-20">
+        <div className="xl:col-span-1 space-y-4">
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:sticky sm:top-4">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide pb-3 border-b border-slate-100 flex items-center space-x-1.5">
               <Receipt className="w-4 h-4 text-emerald-600" />
               <span>Bill Summary</span>

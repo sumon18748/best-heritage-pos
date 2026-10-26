@@ -440,8 +440,8 @@ export const ProductsView: React.FC = () => {
       )}
 
       {/* THREE PREDEFINED CATEGORY TABS (Prominent Switcher) */}
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center space-x-1.5 bg-slate-100/80 p-1 rounded-xl">
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div className="flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto no-scrollbar w-full sm:w-auto">
           <button
             onClick={() => {
               setActiveCategoryTab('all');

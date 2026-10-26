@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   User,
   UserRole,
@@ -403,32 +404,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
-  // Cloud Synchronization: Initial load from Supabase
+  // Cloud Synchronization: Initial load + Real-time Multi-PC live auto-sync
   useEffect(() => {
     let isMounted = true;
-    setIsCloudSyncing(true);
-    fetchAllCollections().then((data) => {
-      if (!isMounted || !data) {
-        setIsCloudSyncing(false);
-        return;
+
+    const pullFromCloud = async (showIndicator = false) => {
+      try {
+        if (showIndicator) setIsCloudSyncing(true);
+        const data = await fetchAllCollections();
+        if (!isMounted || !data) {
+          if (showIndicator) setIsCloudSyncing(false);
+          return;
+        }
+
+        if (data.branches && data.branches.length > 0) setBranches(data.branches);
+        if (data.users && data.users.length > 0) setUsers(data.users);
+        if (data.products !== null) setProducts(data.products);
+        if (data.branchStocks !== null) setBranchStocks(data.branchStocks);
+        if (data.stockIns !== null) setStockIns(data.stockIns);
+        if (data.stockOuts !== null) setStockOuts(data.stockOuts);
+        if (data.sales !== null) setSales(data.sales);
+        if (data.transfers !== null) setTransfers(data.transfers);
+        if (data.expenses !== null) setExpenses(data.expenses);
+        if (data.expenseCategories && data.expenseCategories.length > 0) setExpenseCategories(data.expenseCategories);
+        if (data.openingBalances !== null) setOpeningBalances(data.openingBalances);
+        if (data.movements !== null) setStockMovements(data.movements);
+      } catch (err) {
+        console.warn('Real-time sync pull error:', err);
+      } finally {
+        if (isMounted && showIndicator) setIsCloudSyncing(false);
       }
-      if (data.branches && data.branches.length > 0) setBranches(data.branches);
-      if (data.users && data.users.length > 0) setUsers(data.users);
-      if (data.products) setProducts(data.products);
-      if (data.branchStocks) setBranchStocks(data.branchStocks);
-      if (data.stockIns) setStockIns(data.stockIns);
-      if (data.stockOuts) setStockOuts(data.stockOuts);
-      if (data.sales) setSales(data.sales);
-      if (data.transfers) setTransfers(data.transfers);
-      if (data.expenses) setExpenses(data.expenses);
-      if (data.expenseCategories && data.expenseCategories.length > 0) setExpenseCategories(data.expenseCategories);
-      if (data.openingBalances) setOpeningBalances(data.openingBalances);
-      if (data.movements) setStockMovements(data.movements);
-      setIsCloudSyncing(false);
-    }).catch(() => {
-      if (isMounted) setIsCloudSyncing(false);
-    });
-    return () => { isMounted = false; };
+    };
+
+    // 1. Initial full fetch from Cloud
+    pullFromCloud(true);
+
+    // 2. Real-time PostgreSQL Live Stream (Instant push via WebSocket from Supabase)
+    const channel = supabase
+      .channel('bestheritage-multi-pc-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+        pullFromCloud(false);
+      })
+      .subscribe();
+
+    // 3. Heartbeat polling every 2.5 seconds (Guarantees 100% sync across all PCs without reloading)
+    const pollInterval = setInterval(() => {
+      pullFromCloud(false);
+    }, 2500);
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
   }, []);
 
   // Role booleans
@@ -480,7 +508,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (applyToExistingUsers) {
       setUsers((prev) =>
-        prev.map((u) => (u.role === role ? { ...u, permissions } : u))
+        prev.map((u) => {
+          if (u.role === role) {
+            const updated = { ...u, permissions };
+            syncUserUpsert(updated);
+            return updated;
+          }
+          return u;
+        })
       );
       if (currentUser.role === role) {
         setCurrentUserState((prev) => ({
@@ -502,7 +537,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Unauthorized: Only Super Admin can modify user permissions.' };
     }
     setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, permissions } : u))
+      prev.map((u) => {
+        if (u.id === userId) {
+          const updated = { ...u, permissions };
+          syncUserUpsert(updated);
+          return updated;
+        }
+        return u;
+      })
     );
     if (currentUser.id === userId) {
       setCurrentUserState((prev) => ({
@@ -659,7 +701,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!prod) return { success: false, message: 'Product not found.' };
 
     if (action === 'archive') {
-      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, status: 'inactive' } : p)));
+      const updated = { ...prod, status: 'inactive' as const };
+      setProducts((prev) => prev.map((p) => (p.id === productId ? updated : p)));
+      syncProductUpsert(updated);
       return { success: true, message: `Product "${prod.name}" has been deactivated. It will no longer appear in POS or active stock.` };
     }
 
@@ -667,6 +711,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Super Admin explicit master deletion: removes product and associated branch stocks
       setProducts((prev) => prev.filter((p) => p.id !== productId));
       setBranchStocks((prev) => prev.filter((s) => s.productId !== productId));
+      syncProductDelete(productId);
       return { success: true, message: `Product "${prod.name}" permanently deleted by Super Admin.` };
     }
 
@@ -678,6 +723,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Safe to permanently delete
     setProducts((prev) => prev.filter((p) => p.id !== productId));
     setBranchStocks((prev) => prev.filter((s) => s.productId !== productId));
+    syncProductDelete(productId);
     return { success: true, message: `Product "${prod.name}" permanently deleted.` };
   };
 
@@ -705,13 +751,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!branch) return { success: false, message: 'Branch not found.' };
 
     if (action === 'deactivate') {
-      setBranches((prev) => prev.map((b) => (b.id === branchId ? { ...b, isActive: false } : b)));
+      const updated = { ...branch, isActive: false };
+      setBranches((prev) => prev.map((b) => (b.id === branchId ? updated : b)));
+      syncBranchUpsert(updated);
       return { success: true, message: `Branch "${branch.name}" is now inactive.` };
     }
 
     if (action === 'force_delete' || (action === 'delete' && isSuperAdmin)) {
       setBranches((prev) => prev.filter((b) => b.id !== branchId));
       setBranchStocks((prev) => prev.filter((s) => s.branchId !== branchId));
+      syncBranchDelete(branchId);
       return { success: true, message: `Branch "${branch.name}" permanently deleted by Super Admin.` };
     }
 
@@ -722,6 +771,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBranches((prev) => prev.filter((b) => b.id !== branchId));
     setBranchStocks((prev) => prev.filter((s) => s.branchId !== branchId));
+    syncBranchDelete(branchId);
     return { success: true, message: `Branch "${branch.name}" permanently deleted.` };
   };
 
@@ -749,6 +799,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setUsers((prev) => prev.filter((u) => u.id !== userId));
+    syncUserDelete(userId);
     return { success: true, message: 'User account deleted successfully.' };
   };
 
@@ -790,8 +841,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBranchStocks((prev) => [...prev, ...newBranchStocks]);
 
+    let initialMovement: StockMovement | null = null;
     if (productData.openingStock > 0 && branches.length > 0) {
-      const initialMovement: StockMovement = {
+      initialMovement = {
         id: `mov_${Date.now()}`,
         timestamp: new Date().toLocaleString(),
         date: today,
@@ -808,30 +860,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userId: currentUser.id,
         userName: currentUser.name,
       };
-      setStockMovements((prev) => [initialMovement, ...prev]);
+      setStockMovements((prev) => [initialMovement!, ...prev]);
     }
+
+    // Push to Supabase Cloud
+    syncProductUpsert(newProduct);
+    newBranchStocks.forEach((st) => syncBranchStockUpsert(st));
+    if (initialMovement) syncMovementInsert(initialMovement);
 
     return { success: true, message: `Product "${newProduct.name}" created successfully.`, product: newProduct };
   };
 
   // Update Product (Master updates propagate cleanly)
   const updateProduct = (id: string, productData: Partial<Product>) => {
+    let updatedProd: Product | null = null;
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p;
         const category = productData.categoryId ? categories.find((c) => c.id === productData.categoryId) : undefined;
-        return {
+        updatedProd = {
           ...p,
           ...productData,
           categoryName: category ? category.name : p.categoryName,
           updatedAt: new Date().toISOString().split('T')[0],
         };
+        return updatedProd;
       })
     );
 
+    if (updatedProd) {
+      syncProductUpsert(updatedProd);
+    }
+
     if (productData.minAlertLevel !== undefined) {
       setBranchStocks((prev) =>
-        prev.map((s) => (s.productId === id ? { ...s, minAlertLevel: productData.minAlertLevel! } : s))
+        prev.map((s) => {
+          if (s.productId === id) {
+            const updatedStock = { ...s, minAlertLevel: productData.minAlertLevel! };
+            syncBranchStockUpsert(updatedStock);
+            return updatedStock;
+          }
+          return s;
+        })
       );
     }
 
@@ -871,12 +941,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBranchStocks((prev) => [...prev, ...newStocks]);
 
+    // Push to Supabase Cloud
+    syncBranchUpsert(newBranch);
+    newStocks.forEach((st) => syncBranchStockUpsert(st));
+
     return { success: true, message: `Branch "${newBranch.name}" created successfully.`, branch: newBranch };
   };
 
   // Update Branch
   const updateBranch = (id: string, branchData: Partial<Branch>) => {
-    setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, ...branchData } : b)));
+    let updatedBranch: Branch | null = null;
+    setBranches((prev) =>
+      prev.map((b) => {
+        if (b.id !== id) return b;
+        updatedBranch = { ...b, ...branchData };
+        return updatedBranch;
+      })
+    );
+    if (updatedBranch) syncBranchUpsert(updatedBranch);
     return { success: true, message: 'Branch updated successfully.' };
   };
 
@@ -900,21 +982,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setUsers((prev) => [...prev, newUser]);
+    syncUserUpsert(newUser);
     return { success: true, message: `User "${newUser.name}" (ID: ${newUser.username}) added successfully.` };
   };
 
   const updateUser = (id: string, userData: Partial<User>) => {
+    let updatedUser: User | null = null;
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id !== id) return u;
         const branch = userData.branchId ? branches.find((b) => b.id === userData.branchId) : undefined;
-        return {
+        updatedUser = {
           ...u,
           ...userData,
           branchName: userData.branchId ? (branch ? branch.name : u.branchName) : u.branchName,
         };
+        return updatedUser;
       })
     );
+
+    if (updatedUser) {
+      syncUserUpsert(updatedUser);
+    }
 
     if (id === currentUser.id) {
       setCurrentUserState((prev) => {
@@ -994,6 +1083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const movementsToAdd: StockMovement[] = [];
+    const changedStocks: BranchProductStock[] = [];
 
     setBranchStocks((prev) => {
       const updated = [...prev];
@@ -1009,6 +1099,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             currentStock: newCurrentStock,
             lastUpdated: new Date().toLocaleString(),
           };
+          changedStocks.push(updated[index]);
 
           movementsToAdd.push({
             id: `mov_${Date.now()}_${item.productId}`,
@@ -1029,7 +1120,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         } else {
           const newCurrentStock = item.quantity;
-          updated.push({
+          const newEntry: BranchProductStock = {
             id: `bps_${Date.now()}_${item.productId}`,
             branchId: data.branchId,
             productId: item.productId,
@@ -1042,7 +1133,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             currentStock: newCurrentStock,
             minAlertLevel: prod?.minAlertLevel || 10,
             lastUpdated: new Date().toLocaleString(),
-          });
+          };
+          updated.push(newEntry);
+          changedStocks.push(newEntry);
 
           movementsToAdd.push({
             id: `mov_${Date.now()}_${item.productId}`,
@@ -1068,6 +1161,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setStockIns((prev) => [newTx, ...prev]);
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
+
+    // Push to Supabase Cloud
+    syncStockInUpsert(newTx);
+    changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    movementsToAdd.forEach((m) => syncMovementInsert(m));
 
     return { success: true, message: `Stock In recorded successfully. Ref: ${refNo}`, transaction: newTx };
   };
@@ -1140,6 +1238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const movementsToAdd: StockMovement[] = [];
+    const changedStocks: BranchProductStock[] = [];
 
     setBranchStocks((prev) => {
       const updated = [...prev];
@@ -1154,6 +1253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             currentStock: newCurrentStock,
             lastUpdated: new Date().toLocaleString(),
           };
+          changedStocks.push(updated[index]);
 
           movementsToAdd.push({
             id: `mov_${Date.now()}_${item.productId}`,
@@ -1179,6 +1279,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setStockOuts((prev) => [newTx, ...prev]);
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
+
+    // Push to Supabase Cloud
+    syncStockOutUpsert(newTx);
+    changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    movementsToAdd.forEach((m) => syncMovementInsert(m));
 
     return { success: true, message: `Stock Out completed successfully. Ref: ${refNo}`, transaction: newTx };
   };
@@ -1326,6 +1431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const movementsToAdd: StockMovement[] = [];
+    const changedStocks: BranchProductStock[] = [];
 
     setBranchStocks((prev) => {
       const updated = [...prev];
@@ -1354,6 +1460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               quantitySold: current.quantitySold + decantRes.bottlesDecremented,
               lastUpdated: new Date().toLocaleString(),
             };
+            changedStocks.push(updated[index]);
 
             movementsToAdd.push({
               id: `mov_${Date.now()}_${item.productId}`,
@@ -1380,6 +1487,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               currentStock: newCurrentStock,
               lastUpdated: new Date().toLocaleString(),
             };
+            changedStocks.push(updated[index]);
 
             movementsToAdd.push({
               id: `mov_${Date.now()}_${item.productId}`,
@@ -1407,6 +1515,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSales((prev) => [newSale, ...prev]);
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
 
+    // Push to Supabase Cloud
+    syncSaleUpsert(newSale);
+    changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    movementsToAdd.forEach((m) => syncMovementInsert(m));
+
     return { success: true, message: `Sale completed! Invoice: ${invoiceNo}`, sale: newSale };
   };
 
@@ -1421,6 +1534,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (sale.status === 'cancelled') return { success: false, message: 'Sale is already cancelled.' };
 
     const movementsToAdd: StockMovement[] = [];
+    const changedStocks: BranchProductStock[] = [];
 
     setBranchStocks((prev) => {
       const updated = [...prev];
@@ -1449,6 +1563,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               quantitySold: Math.max(0, current.quantitySold - restoreRes.bottlesIncremented),
               lastUpdated: new Date().toLocaleString(),
             };
+            changedStocks.push(updated[index]);
 
             movementsToAdd.push({
               id: `mov_cancel_${Date.now()}_${item.productId}`,
@@ -1475,6 +1590,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               currentStock: restoredCurrentStock,
               lastUpdated: new Date().toLocaleString(),
             };
+            changedStocks.push(updated[index]);
 
             movementsToAdd.push({
               id: `mov_cancel_${Date.now()}_${item.productId}`,
@@ -1499,21 +1615,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
+    const updatedSale: SaleTransaction = {
+      ...sale,
+      status: 'cancelled',
+      cancellationReason: reason,
+      cancelledAt: new Date().toLocaleString(),
+      cancelledByName: currentUser.name,
+    };
+
     setSales((prev) =>
-      prev.map((s) =>
-        s.id === saleId
-          ? {
-              ...s,
-              status: 'cancelled',
-              cancellationReason: reason,
-              cancelledAt: new Date().toLocaleString(),
-              cancelledByName: currentUser.name,
-            }
-          : s
-      )
+      prev.map((s) => (s.id === saleId ? updatedSale : s))
     );
 
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
+
+    // Push to Supabase Cloud
+    syncSaleUpsert(updatedSale);
+    changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    movementsToAdd.forEach((m) => syncMovementInsert(m));
 
     return { success: true, message: `Sale ${sale.invoiceNo} cancelled. Stock restored to ${sale.branchName}.` };
   };
@@ -1580,16 +1699,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Decrement source branch stock immediately
     let newSourceStock = 0;
+    let changedStockRecord: BranchProductStock | null = null;
     setBranchStocks((prev) =>
       prev.map((s) => {
         if (s.branchId === data.sourceBranchId && s.productId === data.productId) {
           newSourceStock = s.currentStock - data.quantity;
-          return {
+          changedStockRecord = {
             ...s,
             stockOut: s.stockOut + data.quantity,
             currentStock: newSourceStock,
             lastUpdated: new Date().toLocaleString(),
           };
+          return changedStockRecord;
         }
         return s;
       })
@@ -1617,6 +1738,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransfers((prev) => [newTransfer, ...prev]);
     setStockMovements((prev) => [movement, ...prev]);
 
+    // Push to Supabase Cloud
+    syncTransferUpsert(newTransfer);
+    if (changedStockRecord) syncBranchStockUpsert(changedStockRecord);
+    syncMovementInsert(movement);
+
     return {
       success: true,
       message: `Transfer ${transferNo} dispatched: ${data.quantity} units of ${prod.name} sent to ${destBranch.name}.`,
@@ -1639,6 +1765,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Increment destination branch stock
     let newDestStock = 0;
+    let changedStockRecord: BranchProductStock | null = null;
     setBranchStocks((prev) => {
       const updated = [...prev];
       const index = updated.findIndex((s) => s.branchId === trf.destinationBranchId && s.productId === trf.productId);
@@ -1650,9 +1777,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           currentStock: newDestStock,
           lastUpdated: new Date().toLocaleString(),
         };
+        changedStockRecord = updated[index];
       } else {
         newDestStock = trf.quantity;
-        updated.push({
+        changedStockRecord = {
           id: `bps_${Date.now()}`,
           branchId: trf.destinationBranchId,
           productId: trf.productId,
@@ -1665,7 +1793,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           currentStock: newDestStock,
           minAlertLevel: prod?.minAlertLevel || 10,
           lastUpdated: new Date().toLocaleString(),
-        });
+        };
+        updated.push(changedStockRecord);
       }
       return updated;
     });
@@ -1688,20 +1817,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userName: currentUser.name,
     };
 
+    const updatedTransfer: BranchTransfer = {
+      ...trf,
+      status: 'Received',
+      receivedBy: currentUser.name,
+      receivedAt: new Date().toLocaleString(),
+    };
+
     setTransfers((prev) =>
-      prev.map((t) =>
-        t.id === transferId
-          ? {
-              ...t,
-              status: 'Received',
-              receivedBy: currentUser.name,
-              receivedAt: new Date().toLocaleString(),
-            }
-          : t
-      )
+      prev.map((t) => (t.id === transferId ? updatedTransfer : t))
     );
 
     setStockMovements((prev) => [movement, ...prev]);
+
+    // Push to Supabase Cloud
+    syncTransferUpsert(updatedTransfer);
+    if (changedStockRecord) syncBranchStockUpsert(changedStockRecord);
+    syncMovementInsert(movement);
 
     return { success: true, message: `Transfer ${trf.transferNo} received! Stock added to ${trf.destinationBranchName}.` };
   };
@@ -1715,16 +1847,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Restore stock back to source branch
     let restoredStock = 0;
+    let changedStockRecord: BranchProductStock | null = null;
     setBranchStocks((prev) =>
       prev.map((s) => {
         if (s.branchId === trf.sourceBranchId && s.productId === trf.productId) {
           restoredStock = s.currentStock + trf.quantity;
-          return {
+          changedStockRecord = {
             ...s,
             stockOut: Math.max(0, s.stockOut - trf.quantity),
             currentStock: restoredStock,
             lastUpdated: new Date().toLocaleString(),
           };
+          return changedStockRecord;
         }
         return s;
       })
@@ -1748,21 +1882,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userName: currentUser.name,
     };
 
+    const updatedTransfer: BranchTransfer = {
+      ...trf,
+      status: 'Cancelled',
+      cancelledBy: currentUser.name,
+      cancelledAt: new Date().toLocaleString(),
+      cancellationReason: reason,
+    };
+
     setTransfers((prev) =>
-      prev.map((t) =>
-        t.id === transferId
-          ? {
-              ...t,
-              status: 'Cancelled',
-              cancelledBy: currentUser.name,
-              cancelledAt: new Date().toLocaleString(),
-              cancellationReason: reason,
-            }
-          : t
-      )
+      prev.map((t) => (t.id === transferId ? updatedTransfer : t))
     );
 
     setStockMovements((prev) => [movement, ...prev]);
+
+    // Push to Supabase Cloud
+    syncTransferUpsert(updatedTransfer);
+    if (changedStockRecord) syncBranchStockUpsert(changedStockRecord);
+    syncMovementInsert(movement);
 
     return { success: true, message: `Transfer ${trf.transferNo} cancelled. Stock restored to ${trf.sourceBranchName}.` };
   };
@@ -1792,6 +1929,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setOpeningBalances((prev) => [newRec, ...prev]);
+    syncOpeningBalanceUpsert(newRec);
     return { success: true, message: `Opening balance for ${branch.name} saved successfully.` };
   };
 
@@ -1832,6 +1970,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setExpenses((prev) => [newExp, ...prev]);
+    syncExpenseUpsert(newExp);
     return { success: true, message: `Expense recorded: ${voucherNo} (Tk ${data.amount}) from ${data.paymentSource}.` };
   };
 
@@ -1856,19 +1995,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (b) branchName = b.name;
     }
 
+    const updatedExp: OperatingExpense = {
+      ...existing,
+      ...data,
+      branchName,
+      amount: data.amount !== undefined ? Number(data.amount.toFixed(2)) : existing.amount,
+    };
+
     setExpenses((prev) =>
-      prev.map((e) =>
-        e.id === id
-          ? {
-              ...e,
-              ...data,
-              branchName,
-              amount: data.amount !== undefined ? Number(data.amount.toFixed(2)) : e.amount,
-            }
-          : e
-      )
+      prev.map((e) => (e.id === id ? updatedExp : e))
     );
 
+    syncExpenseUpsert(updatedExp);
     return { success: true, message: `Expense voucher ${existing.voucherNo} updated successfully.` };
   };
 
@@ -1884,6 +2022,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setExpenses((prev) => prev.filter((e) => e.id !== id));
+    syncExpenseDelete(id);
     return { success: true, message: `Expense voucher ${target.voucherNo} (Tk ${target.amount}) deleted successfully.` };
   };
 
@@ -1914,6 +2053,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setExpenseCategories((prev) => [newCat, ...prev]);
+    syncExpenseCategoryUpsert(newCat);
     return { success: true, message: `Expense category "${trimmed}" created successfully.`, category: newCat };
   };
 
@@ -1941,22 +2081,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const oldName = target.name;
+    const updatedCat: ExpenseCategoryItem = {
+      ...target,
+      name: trimmed,
+      description: description !== undefined ? description.trim() : target.description,
+    };
+
     setExpenseCategories((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              name: trimmed,
-              description: description !== undefined ? description.trim() : c.description,
-            }
-          : c
-      )
+      prev.map((c) => (c.id === id ? updatedCat : c))
     );
+
+    syncExpenseCategoryUpsert(updatedCat);
 
     // If the category name changed, update existing vouchers referencing the old name
     if (oldName !== trimmed) {
       setExpenses((prev) =>
-        prev.map((e) => (e.category === oldName ? { ...e, category: trimmed } : e))
+        prev.map((e) => {
+          if (e.category === oldName) {
+            const upVoucher = { ...e, category: trimmed };
+            syncExpenseUpsert(upVoucher);
+            return upVoucher;
+          }
+          return e;
+        })
       );
     }
 
@@ -1984,6 +2131,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setExpenseCategories((prev) => prev.filter((c) => c.id !== id));
+    syncExpenseCategoryDelete(id);
     return { success: true, message: `Expense category "${target.name}" deleted successfully.` };
   };
 
