@@ -24,7 +24,6 @@ import {
   calculateDiscountAmount,
   formatCurrencyBDT,
   calculateDecantItemCost,
-  allocateSaleFromLowestCostBatches,
 } from '../utils/stockCalculations';
 import { InvoiceModal } from '../components/InvoiceModal';
 
@@ -47,7 +46,6 @@ export const SalesEntryView: React.FC = () => {
     currentUser,
     canViewProfit,
     selectedCategoryName,
-    getProductBatchesForBranch,
   } = useApp();
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -228,16 +226,6 @@ export const SalesEntryView: React.FC = () => {
     const prod = products.find((p) => p.id === r.productId);
     let purchaseCost = prod ? prod.purchasePrice : 0;
 
-    const batches = getProductBatchesForBranch(branchId, r.productId);
-    const activeBatches = batches.filter((b) => b.remainingQuantity > 0);
-    const batchAllocations = !r.isDecant
-      ? allocateSaleFromLowestCostBatches(activeBatches, r.quantity, prod?.purchasePrice || 0)
-      : [];
-
-    if (!r.isDecant && batchAllocations.length > 0) {
-      purchaseCost = batchAllocations[0].purchasePrice;
-    }
-
     if (r.isDecant && r.decantMlAmount) {
       const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
       purchaseCost = calculateDecantItemCost(prod?.purchasePrice || 0, capacity, r.decantMlAmount);
@@ -256,8 +244,6 @@ export const SalesEntryView: React.FC = () => {
     return {
       ...r,
       purchaseCost,
-      activeBatches,
-      batchAllocations,
       productName: prod?.name || 'Product',
       sku: prod?.sku || 'SKU',
       categoryName: prod?.categoryName || 'Cosmetic Products',
@@ -717,17 +703,6 @@ export const SalesEntryView: React.FC = () => {
                             </>
                           )}
                         </div>
-                        {!row.isDecant && row.batchAllocations && row.batchAllocations.length > 1 && (
-                          <div className="mt-1.5 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-800">
-                            <span className="font-bold">⚡ কম দামের ব্যাচ আগে সেল হচ্ছে:</span>{' '}
-                            {row.batchAllocations.map((a) => `${a.quantity}টি @ Tk ${a.purchasePrice}`).join(' + ')}
-                          </div>
-                        )}
-                        {!row.isDecant && row.activeBatches && row.activeBatches.length > 1 && (
-                          <div className="mt-1 text-[10px] text-slate-500">
-                            মজুদ ব্যাচ: {row.activeBatches.map((b, bIdx) => `${b.remainingQuantity}টি @ Tk ${b.purchasePrice}${bIdx === 0 ? ' (সর্বনিম্ন - ১ম সেল)' : ''}`).join(', ')}
-                          </div>
-                        )}
                       </div>
 
                       {/* Quantity / ML Amount */}

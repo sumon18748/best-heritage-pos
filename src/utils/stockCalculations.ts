@@ -1,4 +1,4 @@
-export interface StockCalculationParams {
+﻿export interface StockCalculationParams {
   openingStock: number;
   stockIn: number;
   stockOut: number;
@@ -403,12 +403,8 @@ export function getProductBatches(params: {
   // 3. User's Golden Rule: "কম দামেরটা আগে সেল হবে তারপরে বেশি দামেরটা হবে"
   // Primary sort: purchasePrice ASC (lowest cost first).
   // Secondary sort: date ASC (earliest first / FIFO).
-  allBatches.sort((a, b) => {
-    if (a.purchasePrice !== b.purchasePrice) {
-      return a.purchasePrice - b.purchasePrice;
-    }
-    return (a.date || '').localeCompare(b.date || '');
-  });
+  // FIFO: date ASC only — earliest batch out first, price does NOT matter
+  allBatches.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   // 4. Deplete already consumed units (sold + stockOut) starting from the lowest price batch first
   let unallocatedConsumed = Math.max(0, Number(params.totalConsumedQty) || 0);

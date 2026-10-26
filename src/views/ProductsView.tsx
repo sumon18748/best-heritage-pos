@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product, MainCategoryName } from '../types';
 import {
@@ -214,19 +214,8 @@ export const ProductsView: React.FC = () => {
       return;
     }
 
-    const pPrice = parseFloat(formPurchasePrice);
-    const sPrice = parseFloat(formSellingPrice);
     const oStock = parseInt(formOpeningStock) || 0;
     const mAlert = parseInt(formMinAlertLevel) || 5;
-
-    if (isNaN(pPrice) || pPrice < 0) {
-      setFormError('Please enter a valid Purchase Price.');
-      return;
-    }
-    if (isNaN(sPrice) || sPrice < 0) {
-      setFormError('Please enter a valid Selling Price.');
-      return;
-    }
 
     const targetCategory = categories.find((c) => c.id === formCategory);
     const parsedPkgSize = formPackageSize ? parseFloat(formPackageSize) || undefined : undefined;
@@ -240,8 +229,8 @@ export const ProductsView: React.FC = () => {
         categoryId: formCategory,
         categoryName: targetCategory?.name || 'Cosmetic Products',
         subcategory: formSubcategory.trim() || undefined,
-        purchasePrice: pPrice,
-        sellingPrice: sPrice,
+        purchasePrice: editingProduct.purchasePrice,
+        sellingPrice: editingProduct.sellingPrice,
         minAlertLevel: mAlert,
         unitOfMeasure: formUnit,
         status: formStatus,
@@ -265,8 +254,8 @@ export const ProductsView: React.FC = () => {
         categoryId: formCategory,
         categoryName: targetCategory?.name || 'Cosmetic Products',
         subcategory: formSubcategory.trim() || undefined,
-        purchasePrice: pPrice,
-        sellingPrice: sPrice,
+        purchasePrice: 0,
+        sellingPrice: 0,
         openingStock: oStock,
         minAlertLevel: mAlert,
         unitOfMeasure: formUnit,
@@ -861,43 +850,6 @@ export const ProductsView: React.FC = () => {
                       placeholder="e.g. Skincare, Fragrances, Staples"
                       value={formSubcategory}
                       onChange={(e) => setFormSubcategory(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Purchase Price (Tk) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      placeholder="00"
-                      value={formPurchasePrice}
-                      onChange={(e) => setFormPurchasePrice(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Selling Price (Tk) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      placeholder="00"
-                      value={formSellingPrice}
-                      onChange={(e) => setFormSellingPrice(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Unit of Measure</label>
-                    <input
-                      type="text"
-                      placeholder="Bottle, Pcs, Box, Kg"
-                      value={formUnit}
-                      onChange={(e) => setFormUnit(e.target.value)}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>

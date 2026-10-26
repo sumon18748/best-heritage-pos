@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+﻿import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   User,
@@ -2065,7 +2065,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           decantMlAmount: item.decantMlAmount,
         });
       } else {
-        // Multi-price Batch Allocation: Lowest purchase price batch sells first!
+        // FIFO Batch Allocation: earliest batch (by date) sells first.
+        // ONE saleItem per original user row — weighted average purchaseCost across batches.
         const baseConsumed = (stock?.quantitySold || 0) + (stock?.stockOut || 0);
         const extraConsumedInThisTx = runningProductConsumedMap.get(item.productId) || 0;
         const totalPriorConsumed = baseConsumed + extraConsumedInThisTx;
@@ -2081,29 +2082,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const allocations = allocateSaleFromLowestCostBatches(batches, item.quantity, prod?.purchasePrice || 0);
 
-        for (const alloc of allocations) {
-          const totalCost = Number((alloc.quantity * alloc.purchasePrice).toFixed(2));
-          const totalSales = Number((alloc.quantity * item.sellingPrice).toFixed(2));
-          const grossProfit = Number((totalSales - totalCost).toFixed(2));
+        // Compute weighted average purchase cost across all batch allocations
+        const totalAllocQty = allocations.reduce((s, a) => s + a.quantity, 0);
+        const totalAllocCost = allocations.reduce((s, a) => s + a.quantity * a.purchasePrice, 0);
+        const weightedAvgPurchaseCost = totalAllocQty > 0
+          ? Number((totalAllocCost / totalAllocQty).toFixed(4))
+          : (prod?.purchasePrice || 0);
 
-          totalQuantitySold += alloc.quantity;
-          saleItems.push({
-            id: `sli_${Date.now()}_${saleItems.length}`,
-            productId: item.productId,
-            productName: prod?.name || 'Product',
-            sku: prod?.sku || 'SKU',
-            categoryName: prod?.categoryName || 'Cosmetic Products',
-            quantity: alloc.quantity,
-            purchaseCost: alloc.purchasePrice,
-            sellingPrice: item.sellingPrice,
-            totalCost,
-            totalSales,
-            grossProfit,
-            batchReferenceNo: alloc.referenceNo,
-            batchPurchasePrice: alloc.purchasePrice,
-            isDecant: false,
-          });
-        }
+        // Use user-entered selling price as-is
+        const sellingPrice = Math.max(0, Number(item.sellingPrice) || 0);
+        const quantity = item.quantity;
+        const totalCost = Number((quantity * weightedAvgPurchaseCost).toFixed(2));
+        const totalSales = Number((quantity * sellingPrice).toFixed(2));
+        const grossProfit = Number((totalSales - totalCost).toFixed(2));
+        const firstBatchRef = allocations[0]?.referenceNo || 'Stock';
+
+        totalQuantitySold += quantity;
+        saleItems.push({
+          id: `sli_${Date.now()}_${saleItems.length}`,
+          productId: item.productId,
+          productName: prod?.name || 'Product',
+          sku: prod?.sku || 'SKU',
+          categoryName: prod?.categoryName || 'Cosmetic Products',
+          quantity,
+          purchaseCost: weightedAvgPurchaseCost,
+          sellingPrice,
+          totalCost,
+          totalSales,
+          grossProfit,
+          batchReferenceNo: firstBatchRef,
+          batchPurchasePrice: weightedAvgPurchaseCost,
+          isDecant: false,
+        });
 
         runningProductConsumedMap.set(item.productId, extraConsumedInThisTx + item.quantity);
       }
