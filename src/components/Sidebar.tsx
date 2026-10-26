@@ -151,7 +151,7 @@ export const Sidebar: React.FC = () => {
           className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-900/40 transition-colors cursor-pointer"
         >
           <LogOut className="w-4 h-4 text-rose-400" />
-          <span>লগআউট (Logout)</span>
+          <span>Sign Out</span>
         </button>
       </div>
 

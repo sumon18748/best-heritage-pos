@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS `stock_movements` (
 
 -- 1. Single Branch (Aftabnagar Branch)
 INSERT INTO `branches` (`id`, `name`, `code`, `address`, `phone`, `status`) VALUES
-('br_aftabnagar', 'আফতাবনগর ব্রাঞ্চ', 'AFT-01', 'আফতাবনগর, বাড্ডা, ঢাকা', '+880 1700-000000', 'active')
+('br_aftabnagar', 'Aftabnagar Branch', 'AFT-01', 'Aftabnagar, Badda, Dhaka', '+880 1700-000000', 'active')
 ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
 
 -- 2. Main Categories
@@ -287,7 +287,7 @@ ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
 
 -- 3. Users (Super Admin, Admin, Branch Manager)
 INSERT INTO `users` (`id`, `name`, `email`, `password_hash`, `phone`, `role`, `branch_id`, `status`) VALUES
-('usr_super', 'বেস্ট হেরিটেজ', 'admin@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000001', 'super_admin', NULL, 'active'),
-('usr_admin', 'সুমন', 'sumon@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000002', 'admin', NULL, 'active'),
-('usr_manager', 'সোহেল আহমেদ', 'sohel@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000003', 'manager', 'br_aftabnagar', 'active')
+('usr_super', 'Best Heritage', 'admin@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000001', 'super_admin', NULL, 'active'),
+('usr_admin', 'Sumon', 'sumon@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000002', 'admin', NULL, 'active'),
+('usr_manager', 'Sohel Ahmed', 'sohel@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000003', 'manager', 'br_aftabnagar', 'active')
 ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);

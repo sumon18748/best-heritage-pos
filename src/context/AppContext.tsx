@@ -189,11 +189,12 @@ interface AppContextType {
   isAuthenticated: boolean;
   login: (identifier: string, password: string) => { success: boolean; message: string };
   logout: () => void;
+  getNextUserId: () => string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'bestheritage_live_v2';
+const STORAGE_KEY = 'bestheritage_live_v3';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUserState] = useState<User>(() => {
@@ -452,12 +453,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const getNextUserId = (): string => {
+    let maxId = 0;
+    for (const u of users) {
+      if (u.username && /^\d{5}$/.test(u.username)) {
+        const num = parseInt(u.username, 10);
+        if (num !== 99999 && num > maxId) {
+          maxId = num;
+        }
+      }
+    }
+    const nextNum = maxId + 1;
+    return String(nextNum).padStart(5, '0');
+  };
+
   const login = (identifier: string, password: string): { success: boolean; message: string } => {
     const cleanId = identifier.trim().toLowerCase();
     const cleanPass = password.trim();
 
     if (!cleanId || !cleanPass) {
-      return { success: false, message: 'ইউজার আইডি এবং পাসওয়ার্ড উভয়ই প্রদান করুন।' };
+      return { success: false, message: 'Please enter both User ID and Password.' };
     }
 
     const matchedUser = users.find((u) => {
@@ -469,16 +484,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     if (!matchedUser) {
-      return { success: false, message: 'ইউজার আইডি খুঁজে পাওয়া যায়নি! অনুগ্রহ করে সঠিক ইউজার আইডি লিখুন।' };
+      return { success: false, message: 'Invalid User ID. Please check your 5-digit ID or email.' };
     }
 
     if (matchedUser.status !== 'active') {
-      return { success: false, message: 'এই অ্যাকাউন্টটি নিষ্ক্রিয় (Inactive)। অ্যাডমিনের সাথে যোগাযোগ করুন।' };
+      return { success: false, message: 'This user account is inactive. Please contact system administrator.' };
     }
 
     const expectedPassword = matchedUser.password || '123456';
     if (cleanPass !== expectedPassword) {
-      return { success: false, message: 'ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিন।' };
+      return { success: false, message: 'Incorrect password. Please enter the correct password.' };
     }
 
     setCurrentUserState(matchedUser);
@@ -496,7 +511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSelectedBranchIdState('all');
     }
 
-    return { success: true, message: 'সফলভাবে লগইন হয়েছে।' };
+    return { success: true, message: 'Login successful.' };
   };
 
   const logout = () => {
@@ -796,16 +811,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const branch = branches.find((b) => b.id === userData.branchId);
+    const assignedUsername = userData.username || getNextUserId();
 
     const newUser: User = {
       ...userData,
+      username: assignedUsername,
+      password: userData.password || '123456',
       id: `usr_${Date.now()}`,
       branchName: branch?.name,
       createdAt: new Date().toISOString().split('T')[0],
     };
 
     setUsers((prev) => [...prev, newUser]);
-    return { success: true, message: `User "${newUser.name}" added successfully.` };
+    return { success: true, message: `User "${newUser.name}" (ID: ${newUser.username}) added successfully.` };
   };
 
   const updateUser = (id: string, userData: Partial<User>) => {
@@ -1991,6 +2009,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthenticated,
         login,
         logout,
+        getNextUserId,
       }}
     >
       {children}

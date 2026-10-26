@@ -45,8 +45,8 @@ export const INITIAL_CATEGORIES: Category[] = [
 export const INITIAL_USERS: User[] = [
   {
     id: 'usr_super',
-    username: 'bestheritage',
-    name: 'বেস্ট হেরিটেজ',
+    username: '99999',
+    name: 'Best Heritage',
     email: 'admin@bestheritage.com',
     role: 'super_admin',
     phone: '+880 1700-000001',
@@ -57,8 +57,8 @@ export const INITIAL_USERS: User[] = [
   },
   {
     id: 'usr_admin',
-    username: 'sumon',
-    name: 'সুমন',
+    username: '00001',
+    name: 'Sumon',
     email: 'sumon@bestheritage.com',
     role: 'admin',
     phone: '+880 1700-000002',
@@ -69,12 +69,12 @@ export const INITIAL_USERS: User[] = [
   },
   {
     id: 'usr_manager',
-    username: 'sohel',
-    name: 'সোহেল আহমেদ',
+    username: '00002',
+    name: 'Sohel Ahmed',
     email: 'sohel@bestheritage.com',
     role: 'manager',
     branchId: 'br_aftabnagar',
-    branchName: 'আফতাবনগর ব্রাঞ্চ',
+    branchName: 'Aftabnagar Branch',
     phone: '+880 1700-000003',
     password: '123456',
     status: 'active',
@@ -89,9 +89,9 @@ export const INITIAL_USERS: User[] = [
 export const INITIAL_BRANCHES: Branch[] = [
   {
     id: 'br_aftabnagar',
-    name: 'আফতাবনগর ব্রাঞ্চ',
+    name: 'Aftabnagar Branch',
     code: 'AFT-01',
-    address: 'আফতাবনগর, বাড্ডা, ঢাকা',
+    address: 'Aftabnagar, Badda, Dhaka',
     contactNumber: '+880 1700-000000',
     isActive: true,
     createdAt: '2026-01-01',

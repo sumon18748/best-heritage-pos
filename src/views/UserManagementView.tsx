@@ -76,6 +76,7 @@ export const UserManagementView: React.FC = () => {
     addExpenseCategory,
     updateExpenseCategory,
     deleteExpenseCategory,
+    getNextUserId,
   } = useApp();
 
   // Super Admin View Tabs: 'role_permissions', 'user_accounts', 'expense_management'
@@ -416,6 +417,7 @@ export const UserManagementView: React.FC = () => {
     } else {
       const defaultPerms = rolePermissions[formRole] || getDefaultPermissionsForRole(formRole);
       const res = addUser({
+        username: getNextUserId(),
         name: formName.trim(),
         email: formEmail.trim().toLowerCase(),
         role: formRole,
@@ -1136,7 +1138,12 @@ export const UserManagementView: React.FC = () => {
                               {u.name.charAt(0)}
                             </div>
                             <div>
-                              <p className="font-semibold text-slate-900">{u.name}</p>
+                              <div className="flex items-center space-x-1.5">
+                                <p className="font-semibold text-slate-900">{u.name}</p>
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono border border-slate-200">
+                                  ID: {u.username || '99999'}
+                                </span>
+                              </div>
                               <p className="text-[11px] text-slate-500 font-mono">{u.email}</p>
                             </div>
                           </div>
@@ -1865,6 +1872,26 @@ export const UserManagementView: React.FC = () => {
             )}
 
             <form onSubmit={handleSaveUser} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  User ID (5-Digit Login ID) *
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    disabled
+                    value={editingUser ? (editingUser.username || '99999') : getNextUserId()}
+                    className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-300 rounded-lg text-slate-800 font-mono font-bold cursor-not-allowed select-none"
+                  />
+                  <span className="text-[10px] font-bold px-2.5 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg shrink-0 border border-emerald-200">
+                    AUTO
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Unique 5-digit ID automatically assigned for user sign in.
+                </p>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
                 <input
