@@ -36,16 +36,40 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
-  const { activeTab, setActiveTab, currentUser, branchStocks, selectedBranchId, transfers, userPermissions, logout } = useApp();
+  const {
+    activeTab,
+    setActiveTab,
+    currentUser,
+    products,
+    branches,
+    branchStocks,
+    selectedBranchId,
+    transfers,
+    userPermissions,
+    logout,
+  } = useApp();
 
-  const relevantStocks = selectedBranchId === 'all'
-    ? branchStocks
-    : branchStocks.filter((s) => s.branchId === selectedBranchId);
+  const isBranchLocked = currentUser.role === 'manager' && !!currentUser.branchId;
+  const effectiveBranchId = isBranchLocked ? currentUser.branchId! : selectedBranchId;
 
-  const alertCount = relevantStocks.filter((s) => {
-    const status = calculateStockAlertStatus(s.currentStock, s.minAlertLevel);
-    return status === 'low_stock' || status === 'out_of_stock';
-  }).length;
+  const targetBranches = effectiveBranchId === 'all'
+    ? branches
+    : branches.filter((b) => b.id === effectiveBranchId);
+
+  let alertCount = 0;
+  products.filter((p) => p.status !== 'inactive').forEach((prod) => {
+    targetBranches.forEach((branch) => {
+      const stock = branchStocks.find((s) => s.productId === prod.id && s.branchId === branch.id);
+      const currentStock = stock ? Number(stock.currentStock) || 0 : 0;
+      const minAlert = (stock && stock.minAlertLevel !== undefined && stock.minAlertLevel > 0)
+        ? stock.minAlertLevel
+        : (prod.minAlertLevel || 5);
+      const status = calculateStockAlertStatus(currentStock, minAlert);
+      if (status === 'low_stock' || status === 'out_of_stock') {
+        alertCount++;
+      }
+    });
+  });
 
   const pendingTransferCount = transfers.filter((t) => t.status === 'Dispatched').length;
 

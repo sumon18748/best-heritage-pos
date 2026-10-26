@@ -93,34 +93,56 @@ export const Header: React.FC = () => {
     };
   }, []);
 
-  // Compute alert count for active branch selection
-  const relevantStocks = selectedBranchId === 'all'
-    ? branchStocks
-    : branchStocks.filter((s) => s.branchId === selectedBranchId);
+  const isBranchRestricted = currentUser.role === 'manager';
+  const effectiveBranchId = isBranchRestricted && currentUser.branchId ? currentUser.branchId : selectedBranchId;
 
   // Build notifications list
   const stockNotifications = useMemo(() => {
-    return relevantStocks
-      .map((s) => {
-        const status = calculateStockAlertStatus(s.currentStock, s.minAlertLevel);
-        if (status === 'healthy') return null;
-        const prod = products.find((p) => p.id === s.productId);
-        const branch = branches.find((b) => b.id === s.branchId);
-        return {
-          id: `stock_${s.id}`,
-          type: 'stock' as const,
-          status, // 'low_stock' | 'out_of_stock'
-          title: prod?.name || 'Product',
-          sku: prod?.sku || 'SKU',
-          categoryName: prod?.categoryName || 'General',
-          currentStock: s.currentStock,
-          minAlertLevel: s.minAlertLevel,
-          branchName: branch?.name || 'Main Branch',
-          targetTab: 'stock-alerts' as ActiveTab,
-        };
-      })
-      .filter((n): n is NonNullable<typeof n> => n !== null);
-  }, [relevantStocks, products, branches]);
+    const targetBranches = effectiveBranchId === 'all'
+      ? branches
+      : branches.filter((b) => b.id === effectiveBranchId);
+
+    const alerts: Array<{
+      id: string;
+      type: 'stock';
+      status: 'low_stock' | 'out_of_stock';
+      title: string;
+      sku: string;
+      categoryName: string;
+      currentStock: number;
+      minAlertLevel: number;
+      branchName: string;
+      targetTab: ActiveTab;
+    }> = [];
+
+    products.filter((p) => p.status !== 'inactive').forEach((prod) => {
+      targetBranches.forEach((branch) => {
+        const stock = branchStocks.find((s) => s.productId === prod.id && s.branchId === branch.id);
+        const currentStock = stock ? Number(stock.currentStock) || 0 : 0;
+        const minAlert = (stock && stock.minAlertLevel !== undefined && stock.minAlertLevel > 0)
+          ? stock.minAlertLevel
+          : (prod.minAlertLevel || 5);
+        const status = calculateStockAlertStatus(currentStock, minAlert);
+
+        if (status === 'low_stock' || status === 'out_of_stock') {
+          alerts.push({
+            id: `stock_${prod.id}_${branch.id}_${status}_${currentStock}`,
+            type: 'stock',
+            status,
+            title: prod.name,
+            sku: prod.sku,
+            categoryName: prod.categoryName || 'General',
+            currentStock,
+            minAlertLevel: minAlert,
+            branchName: branch.name,
+            targetTab: 'stock-alerts',
+          });
+        }
+      });
+    });
+
+    return alerts;
+  }, [products, branchStocks, branches, effectiveBranchId]);
 
   const transferNotifications = useMemo(() => {
     return transfers
@@ -149,7 +171,6 @@ export const Header: React.FC = () => {
   }, [allNotifications, readNotificationIds]);
 
   const unreadCount = unreadNotifications.length;
-  const isBranchRestricted = currentUser.role === 'manager';
 
   const getRoleBadge = (role: string) => {
     switch (role) {

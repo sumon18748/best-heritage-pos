@@ -42,67 +42,92 @@ export const StockAlertsView: React.FC = () => {
 
   const effectiveBranchId = isBranchLocked ? currentUser.branchId! : filterBranchId;
 
-  // Build items with alert status
-  const alertItems = branchStocks
-    .map((stock) => {
-      const product = products.find((p) => p.id === stock.productId);
-      const branch = branches.find((b) => b.id === stock.branchId);
-      const status = calculateStockAlertStatus(stock.currentStock, stock.minAlertLevel);
+  // Build items with alert status across all active products and target branches
+  const targetBranchesForAlerts = effectiveBranchId === 'all'
+    ? branches
+    : branches.filter((b) => b.id === effectiveBranchId);
 
-      return {
-        ...stock,
-        productName: product?.name || 'Product',
-        sku: product?.sku || 'SKU',
-        categoryName: product?.categoryName || 'General',
-        purchasePrice: product?.purchasePrice || 0,
-        sellingPrice: product?.sellingPrice || 0,
-        branchName: branch?.name || 'Branch',
-        alertStatus: status,
-        shortage: Math.max(0, stock.minAlertLevel - stock.currentStock),
-      };
-    })
-    .filter((item) => {
-      const matchesBranch = effectiveBranchId === 'all' || item.branchId === effectiveBranchId;
-      const matchesCategory = selectedCategory === 'all' || item.categoryName === selectedCategory;
-      const matchesSearch =
-        item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+  const allAlertCandidates: Array<{
+    id: string;
+    branchId: string;
+    productId: string;
+    productName: string;
+    sku: string;
+    categoryName: string;
+    purchasePrice: number;
+    sellingPrice: number;
+    branchName: string;
+    currentStock: number;
+    minAlertLevel: number;
+    alertStatus: 'out_of_stock' | 'low_stock' | 'healthy';
+    shortage: number;
+  }> = [];
 
-      if (!matchesBranch || !matchesCategory || !matchesSearch) return false;
+  products.filter((p) => p.status !== 'inactive').forEach((prod) => {
+    targetBranchesForAlerts.forEach((branch) => {
+      const stock = branchStocks.find((s) => s.productId === prod.id && s.branchId === branch.id);
+      const currentStock = stock ? Number(stock.currentStock) || 0 : 0;
+      const minAlertLevel = (stock && stock.minAlertLevel !== undefined && stock.minAlertLevel > 0)
+        ? stock.minAlertLevel
+        : (prod.minAlertLevel || 5);
+      const alertStatus = calculateStockAlertStatus(currentStock, minAlertLevel);
 
-      if (activeTabFilter === 'all_alerts') {
-        return item.alertStatus === 'low_stock' || item.alertStatus === 'out_of_stock';
-      }
-      if (activeTabFilter === 'low_stock') {
-        return item.alertStatus === 'low_stock';
-      }
-      if (activeTabFilter === 'out_of_stock') {
-        return item.alertStatus === 'out_of_stock';
-      }
-      if (activeTabFilter === 'healthy') {
-        return item.alertStatus === 'healthy';
-      }
-      return true;
+      allAlertCandidates.push({
+        id: stock?.id || `alert_${prod.id}_${branch.id}`,
+        branchId: branch.id,
+        productId: prod.id,
+        productName: prod.name,
+        sku: prod.sku,
+        categoryName: prod.categoryName || 'General',
+        purchasePrice: prod.purchasePrice || 0,
+        sellingPrice: prod.sellingPrice || 0,
+        branchName: branch.name,
+        currentStock,
+        minAlertLevel,
+        alertStatus,
+        shortage: Math.max(0, minAlertLevel - currentStock),
+      });
     });
+  });
 
-  // Calculate totals for active branch filter
-  const branchFilteredAll = branchStocks
-    .filter((s) => effectiveBranchId === 'all' || s.branchId === effectiveBranchId)
-    .filter((s) => {
-      const p = products.find((prod) => prod.id === s.productId);
-      return selectedCategory === 'all' || p?.categoryName === selectedCategory;
-    });
+  const alertItems = allAlertCandidates.filter((item) => {
+    const matchesCategory = selectedCategory === 'all' || item.categoryName === selectedCategory;
+    const matchesSearch =
+      item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchTerm.toLowerCase());
 
-  const outOfStockCount = branchFilteredAll.filter(
-    (s) => calculateStockAlertStatus(s.currentStock, s.minAlertLevel) === 'out_of_stock'
+    if (!matchesCategory || !matchesSearch) return false;
+
+    if (activeTabFilter === 'all_alerts') {
+      return item.alertStatus === 'low_stock' || item.alertStatus === 'out_of_stock';
+    }
+    if (activeTabFilter === 'low_stock') {
+      return item.alertStatus === 'low_stock';
+    }
+    if (activeTabFilter === 'out_of_stock') {
+      return item.alertStatus === 'out_of_stock';
+    }
+    if (activeTabFilter === 'healthy') {
+      return item.alertStatus === 'healthy';
+    }
+    return true;
+  });
+
+  // Calculate totals for active branch & category filter
+  const categoryFilteredCandidates = allAlertCandidates.filter(
+    (item) => selectedCategory === 'all' || item.categoryName === selectedCategory
+  );
+
+  const outOfStockCount = categoryFilteredCandidates.filter(
+    (item) => item.alertStatus === 'out_of_stock'
   ).length;
 
-  const lowStockCount = branchFilteredAll.filter(
-    (s) => calculateStockAlertStatus(s.currentStock, s.minAlertLevel) === 'low_stock'
+  const lowStockCount = categoryFilteredCandidates.filter(
+    (item) => item.alertStatus === 'low_stock'
   ).length;
 
-  const healthyCount = branchFilteredAll.filter(
-    (s) => calculateStockAlertStatus(s.currentStock, s.minAlertLevel) === 'healthy'
+  const healthyCount = categoryFilteredCandidates.filter(
+    (item) => item.alertStatus === 'healthy'
   ).length;
 
   const activeBranchLabel = isBranchLocked

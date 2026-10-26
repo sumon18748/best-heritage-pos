@@ -117,15 +117,47 @@ export const DashboardView: React.FC = () => {
     bankExpenses,
   });
 
-  // Alerts
-  const lowStockItems = relevantStocks.filter((s) => {
-    const status = calculateStockAlertStatus(s.currentStock, s.minAlertLevel);
-    return status === 'low_stock';
-  });
+  // Comprehensive Alerts
+  const targetBranchesForAlerts = isAllBranches ? branches : branches.filter((b) => b.id === effectiveBranchId);
+  const lowStockItems: Array<{
+    id: string;
+    productId: string;
+    branchId: string;
+    currentStock: number;
+    minAlertLevel: number;
+  }> = [];
 
-  const outOfStockItems = relevantStocks.filter((s) => {
-    const status = calculateStockAlertStatus(s.currentStock, s.minAlertLevel);
-    return status === 'out_of_stock';
+  const outOfStockItems: Array<{
+    id: string;
+    productId: string;
+    branchId: string;
+    currentStock: number;
+    minAlertLevel: number;
+  }> = [];
+
+  products.filter((p) => p.status !== 'inactive').forEach((prod) => {
+    targetBranchesForAlerts.forEach((branch) => {
+      const stock = branchStocks.find((s) => s.productId === prod.id && s.branchId === branch.id);
+      const currentStock = stock ? Number(stock.currentStock) || 0 : 0;
+      const minAlertLevel = (stock && stock.minAlertLevel !== undefined && stock.minAlertLevel > 0)
+        ? stock.minAlertLevel
+        : (prod.minAlertLevel || 5);
+      const status = calculateStockAlertStatus(currentStock, minAlertLevel);
+
+      const alertRecord = {
+        id: stock?.id || `alert_${prod.id}_${branch.id}`,
+        productId: prod.id,
+        branchId: branch.id,
+        currentStock,
+        minAlertLevel,
+      };
+
+      if (status === 'out_of_stock') {
+        outOfStockItems.push(alertRecord);
+      } else if (status === 'low_stock') {
+        lowStockItems.push(alertRecord);
+      }
+    });
   });
 
   const activeBranchObj = branches.find((b) => b.id === effectiveBranchId);
