@@ -1236,84 +1236,99 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movementsToAdd: StockMovement[] = [];
     const changedStocks: BranchProductStock[] = [];
 
+    // Precalculate synchronously so changedStocks is immediately populated for Supabase sync
+    const stockMap = new Map<string, BranchProductStock>();
+    branchStocks.forEach((s) => stockMap.set(`${s.branchId}_${s.productId}`, s));
+
+    for (const item of itemsWithDetails) {
+      const key = `${data.branchId}_${item.productId}`;
+      const existing = stockMap.get(key);
+      const prod = products.find((p) => p.id === item.productId);
+
+      if (existing) {
+        const newCurrentStock = existing.currentStock + item.quantity;
+        const updatedEntry: BranchProductStock = {
+          ...existing,
+          stockIn: existing.stockIn + item.quantity,
+          currentStock: newCurrentStock,
+          lastUpdated: new Date().toLocaleString(),
+        };
+        changedStocks.push(updatedEntry);
+        stockMap.set(key, updatedEntry);
+
+        movementsToAdd.push({
+          id: `mov_${Date.now()}_${item.productId}`,
+          timestamp: new Date().toLocaleString(),
+          date: data.date,
+          branchId: data.branchId,
+          branchName: branch.name,
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          type: 'stock_in',
+          quantityChange: item.quantity,
+          balanceAfter: newCurrentStock,
+          referenceNo: refNo,
+          notes: data.supplierName ? `From: ${data.supplierName}` : data.remarks,
+          userId: currentUser.id,
+          userName: currentUser.name,
+        });
+      } else {
+        const newCurrentStock = item.quantity;
+        const newEntry: BranchProductStock = {
+          id: `bps_${Date.now()}_${item.productId}`,
+          branchId: data.branchId,
+          productId: item.productId,
+          openingStock: 0,
+          stockIn: item.quantity,
+          stockOut: 0,
+          quantitySold: 0,
+          salesReturn: 0,
+          purchaseReturn: 0,
+          currentStock: newCurrentStock,
+          minAlertLevel: prod?.minAlertLevel || 10,
+          lastUpdated: new Date().toLocaleString(),
+        };
+        changedStocks.push(newEntry);
+        stockMap.set(key, newEntry);
+
+        movementsToAdd.push({
+          id: `mov_${Date.now()}_${item.productId}`,
+          timestamp: new Date().toLocaleString(),
+          date: data.date,
+          branchId: data.branchId,
+          branchName: branch.name,
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          type: 'stock_in',
+          quantityChange: item.quantity,
+          balanceAfter: newCurrentStock,
+          referenceNo: refNo,
+          notes: data.supplierName ? `From: ${data.supplierName}` : data.remarks,
+          userId: currentUser.id,
+          userName: currentUser.name,
+        });
+      }
+    }
+
     setBranchStocks((prev) => {
       const updated = [...prev];
-      for (const item of itemsWithDetails) {
-        const index = updated.findIndex((s) => s.branchId === data.branchId && s.productId === item.productId);
-        const prod = products.find((p) => p.id === item.productId);
-        if (index >= 0) {
-          const current = updated[index];
-          const newCurrentStock = current.currentStock + item.quantity;
-          updated[index] = {
-            ...current,
-            stockIn: current.stockIn + item.quantity,
-            currentStock: newCurrentStock,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          changedStocks.push(updated[index]);
-
-          movementsToAdd.push({
-            id: `mov_${Date.now()}_${item.productId}`,
-            timestamp: new Date().toLocaleString(),
-            date: data.date,
-            branchId: data.branchId,
-            branchName: branch.name,
-            productId: item.productId,
-            productName: item.productName,
-            sku: item.sku,
-            type: 'stock_in',
-            quantityChange: item.quantity,
-            balanceAfter: newCurrentStock,
-            referenceNo: refNo,
-            notes: data.supplierName ? `From: ${data.supplierName}` : data.remarks,
-            userId: currentUser.id,
-            userName: currentUser.name,
-          });
+      changedStocks.forEach((cs) => {
+        const idx = updated.findIndex((s) => s.branchId === cs.branchId && s.productId === cs.productId);
+        if (idx >= 0) {
+          updated[idx] = cs;
         } else {
-          const newCurrentStock = item.quantity;
-          const newEntry: BranchProductStock = {
-            id: `bps_${Date.now()}_${item.productId}`,
-            branchId: data.branchId,
-            productId: item.productId,
-            openingStock: 0,
-            stockIn: item.quantity,
-            stockOut: 0,
-            quantitySold: 0,
-            salesReturn: 0,
-            purchaseReturn: 0,
-            currentStock: newCurrentStock,
-            minAlertLevel: prod?.minAlertLevel || 10,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          updated.push(newEntry);
-          changedStocks.push(newEntry);
-
-          movementsToAdd.push({
-            id: `mov_${Date.now()}_${item.productId}`,
-            timestamp: new Date().toLocaleString(),
-            date: data.date,
-            branchId: data.branchId,
-            branchName: branch.name,
-            productId: item.productId,
-            productName: item.productName,
-            sku: item.sku,
-            type: 'stock_in',
-            quantityChange: item.quantity,
-            balanceAfter: newCurrentStock,
-            referenceNo: refNo,
-            notes: data.supplierName ? `From: ${data.supplierName}` : data.remarks,
-            userId: currentUser.id,
-            userName: currentUser.name,
-          });
+          updated.push(cs);
         }
-      }
+      });
       return updated;
     });
 
     setStockIns((prev) => [newTx, ...prev]);
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
 
-    // Push to Supabase Cloud
+    // Push to Supabase Cloud immediately
     syncStockInUpsert(newTx);
     changedStocks.forEach((st) => syncBranchStockUpsert(st));
     movementsToAdd.forEach((m) => syncMovementInsert(m));
@@ -1391,47 +1406,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movementsToAdd: StockMovement[] = [];
     const changedStocks: BranchProductStock[] = [];
 
-    setBranchStocks((prev) => {
-      const updated = [...prev];
-      for (const item of itemsWithDetails) {
-        const index = updated.findIndex((s) => s.branchId === data.branchId && s.productId === item.productId);
-        if (index >= 0) {
-          const current = updated[index];
-          const newCurrentStock = current.currentStock - item.quantity;
-          updated[index] = {
-            ...current,
-            stockOut: current.stockOut + item.quantity,
-            currentStock: newCurrentStock,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          changedStocks.push(updated[index]);
+    // Precalculate synchronously so changedStocks is immediately populated for Supabase sync
+    for (const item of itemsWithDetails) {
+      const current = branchStocks.find((s) => s.branchId === data.branchId && s.productId === item.productId);
+      if (current) {
+        const newCurrentStock = current.currentStock - item.quantity;
+        const updatedEntry: BranchProductStock = {
+          ...current,
+          stockOut: current.stockOut + item.quantity,
+          currentStock: newCurrentStock,
+          lastUpdated: new Date().toLocaleString(),
+        };
+        changedStocks.push(updatedEntry);
 
-          movementsToAdd.push({
-            id: `mov_${Date.now()}_${item.productId}`,
-            timestamp: new Date().toLocaleString(),
-            date: data.date,
-            branchId: data.branchId,
-            branchName: branch.name,
-            productId: item.productId,
-            productName: item.productName,
-            sku: item.sku,
-            type: 'stock_out',
-            quantityChange: -item.quantity,
-            balanceAfter: newCurrentStock,
-            referenceNo: refNo,
-            notes: `${data.reason}: ${data.remarks || 'Stock Out adjustment'}`,
-            userId: currentUser.id,
-            userName: currentUser.name,
-          });
-        }
+        movementsToAdd.push({
+          id: `mov_${Date.now()}_${item.productId}`,
+          timestamp: new Date().toLocaleString(),
+          date: data.date,
+          branchId: data.branchId,
+          branchName: branch.name,
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          type: 'stock_out',
+          quantityChange: -item.quantity,
+          balanceAfter: newCurrentStock,
+          referenceNo: refNo,
+          notes: `${data.reason}: ${data.remarks || 'Stock Out adjustment'}`,
+          userId: currentUser.id,
+          userName: currentUser.name,
+        });
       }
-      return updated;
-    });
+    }
+
+    setBranchStocks((prev) =>
+      prev.map((s) => {
+        const matching = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+        return matching ? matching : s;
+      })
+    );
 
     setStockOuts((prev) => [newTx, ...prev]);
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
 
-    // Push to Supabase Cloud
+    // Push to Supabase Cloud immediately
     syncStockOutUpsert(newTx);
     changedStocks.forEach((st) => syncBranchStockUpsert(st));
     movementsToAdd.forEach((m) => syncMovementInsert(m));
@@ -1584,89 +1602,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movementsToAdd: StockMovement[] = [];
     const changedStocks: BranchProductStock[] = [];
 
-    setBranchStocks((prev) => {
-      const updated = [...prev];
-      for (const item of saleItems) {
-        const index = updated.findIndex((s) => s.branchId === data.branchId && s.productId === item.productId);
-        if (index >= 0) {
-          const current = updated[index];
-          const prod = products.find((p) => p.id === item.productId);
+    // Precalculate synchronously so changedStocks is immediately populated for Supabase sync
+    for (const item of saleItems) {
+      const current = branchStocks.find((s) => s.branchId === data.branchId && s.productId === item.productId);
+      const prod = products.find((p) => p.id === item.productId);
 
-          if (item.isDecant && item.decantMlAmount) {
-            const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
-            const mlSold = item.decantMlAmount * item.quantity;
+      if (current) {
+        if (item.isDecant && item.decantMlAmount) {
+          const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
+          const mlSold = item.decantMlAmount * item.quantity;
 
-            const decantRes = calculateDecantStockDeduction({
-              currentStock: current.currentStock,
-              currentOpenBottleMl: current.openBottleMlRemaining,
-              bottleCapacityMl: capacity,
-              wastageMl: 0,
-              mlSold,
-            });
+          const decantRes = calculateDecantStockDeduction({
+            currentStock: current.currentStock,
+            currentOpenBottleMl: current.openBottleMlRemaining,
+            bottleCapacityMl: capacity,
+            wastageMl: 0,
+            mlSold,
+          });
 
-            updated[index] = {
-              ...current,
-              currentStock: decantRes.newCurrentStock,
-              openBottleMlRemaining: decantRes.newOpenBottleMl,
-              quantitySold: current.quantitySold + decantRes.bottlesDecremented,
-              lastUpdated: new Date().toLocaleString(),
-            };
-            changedStocks.push(updated[index]);
+          const updatedEntry: BranchProductStock = {
+            ...current,
+            currentStock: decantRes.newCurrentStock,
+            openBottleMlRemaining: decantRes.newOpenBottleMl,
+            quantitySold: current.quantitySold + decantRes.bottlesDecremented,
+            lastUpdated: new Date().toLocaleString(),
+          };
+          changedStocks.push(updatedEntry);
 
-            movementsToAdd.push({
-              id: `mov_${Date.now()}_${item.productId}`,
-              timestamp: new Date().toLocaleString(),
-              date: data.date,
-              branchId: data.branchId,
-              branchName: branch.name,
-              productId: item.productId,
-              productName: item.productName,
-              sku: item.sku,
-              type: 'sale',
-              quantityChange: -decantRes.bottlesDecremented,
-              balanceAfter: decantRes.newCurrentStock,
-              referenceNo: invoiceNo,
-              notes: `Decanted sale: ${item.quantity}x ${item.decantVariantName || ''} (${mlSold}ml). Open bottle: ${decantRes.newOpenBottleMl}ml remaining. Sold to: ${newSale.customerName} (${data.paymentMethod})`,
-              userId: currentUser.id,
-              userName: currentUser.name,
-            });
-          } else {
-            const newCurrentStock = current.currentStock - item.quantity;
-            updated[index] = {
-              ...current,
-              quantitySold: current.quantitySold + item.quantity,
-              currentStock: newCurrentStock,
-              lastUpdated: new Date().toLocaleString(),
-            };
-            changedStocks.push(updated[index]);
+          movementsToAdd.push({
+            id: `mov_${Date.now()}_${item.productId}`,
+            timestamp: new Date().toLocaleString(),
+            date: data.date,
+            branchId: data.branchId,
+            branchName: branch.name,
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            type: 'sale',
+            quantityChange: -decantRes.bottlesDecremented,
+            balanceAfter: decantRes.newCurrentStock,
+            referenceNo: invoiceNo,
+            notes: `Decanted sale: ${item.quantity}x ${item.decantVariantName || ''} (${mlSold}ml). Open bottle: ${decantRes.newOpenBottleMl}ml remaining. Sold to: ${newSale.customerName} (${data.paymentMethod})`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+          });
+        } else {
+          const newCurrentStock = current.currentStock - item.quantity;
+          const updatedEntry: BranchProductStock = {
+            ...current,
+            quantitySold: current.quantitySold + item.quantity,
+            currentStock: newCurrentStock,
+            lastUpdated: new Date().toLocaleString(),
+          };
+          changedStocks.push(updatedEntry);
 
-            movementsToAdd.push({
-              id: `mov_${Date.now()}_${item.productId}`,
-              timestamp: new Date().toLocaleString(),
-              date: data.date,
-              branchId: data.branchId,
-              branchName: branch.name,
-              productId: item.productId,
-              productName: item.productName,
-              sku: item.sku,
-              type: 'sale',
-              quantityChange: -item.quantity,
-              balanceAfter: newCurrentStock,
-              referenceNo: invoiceNo,
-              notes: `Sold to: ${newSale.customerName} (${data.paymentMethod})`,
-              userId: currentUser.id,
-              userName: currentUser.name,
-            });
-          }
+          movementsToAdd.push({
+            id: `mov_${Date.now()}_${item.productId}`,
+            timestamp: new Date().toLocaleString(),
+            date: data.date,
+            branchId: data.branchId,
+            branchName: branch.name,
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            type: 'sale',
+            quantityChange: -item.quantity,
+            balanceAfter: newCurrentStock,
+            referenceNo: invoiceNo,
+            notes: `Sold to: ${newSale.customerName} (${data.paymentMethod})`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+          });
         }
       }
-      return updated;
-    });
+    }
+
+    setBranchStocks((prev) =>
+      prev.map((s) => {
+        const matching = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+        return matching ? matching : s;
+      })
+    );
 
     setSales((prev) => [newSale, ...prev]);
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
 
-    // Push to Supabase Cloud
+    // Push to Supabase Cloud immediately
     syncSaleUpsert(newSale);
     changedStocks.forEach((st) => syncBranchStockUpsert(st));
     movementsToAdd.forEach((m) => syncMovementInsert(m));
@@ -1687,84 +1708,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movementsToAdd: StockMovement[] = [];
     const changedStocks: BranchProductStock[] = [];
 
-    setBranchStocks((prev) => {
-      const updated = [...prev];
-      for (const item of sale.items) {
-        const index = updated.findIndex((s) => s.branchId === sale.branchId && s.productId === item.productId);
-        if (index >= 0) {
-          const current = updated[index];
-          const prod = products.find((p) => p.id === item.productId);
+    // Precalculate synchronously so changedStocks is immediately populated for Supabase sync
+    for (const item of sale.items) {
+      const current = branchStocks.find((s) => s.branchId === sale.branchId && s.productId === item.productId);
+      const prod = products.find((p) => p.id === item.productId);
 
-          if (item.isDecant && item.decantMlAmount) {
-            const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
-            const mlRestored = item.decantMlAmount * item.quantity;
+      if (current) {
+        if (item.isDecant && item.decantMlAmount) {
+          const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
+          const mlRestored = item.decantMlAmount * item.quantity;
 
-            const restoreRes = calculateDecantCancelRestore({
-              currentStock: current.currentStock,
-              currentOpenBottleMl: current.openBottleMlRemaining,
-              bottleCapacityMl: capacity,
-              wastageMl: 0,
-              mlRestored,
-            });
+          const restoreRes = calculateDecantCancelRestore({
+            currentStock: current.currentStock,
+            currentOpenBottleMl: current.openBottleMlRemaining,
+            bottleCapacityMl: capacity,
+            wastageMl: 0,
+            mlRestored,
+          });
 
-            updated[index] = {
-              ...current,
-              currentStock: restoreRes.newCurrentStock,
-              openBottleMlRemaining: restoreRes.newOpenBottleMl,
-              quantitySold: Math.max(0, current.quantitySold - restoreRes.bottlesIncremented),
-              lastUpdated: new Date().toLocaleString(),
-            };
-            changedStocks.push(updated[index]);
+          const updatedEntry: BranchProductStock = {
+            ...current,
+            currentStock: restoreRes.newCurrentStock,
+            openBottleMlRemaining: restoreRes.newOpenBottleMl,
+            quantitySold: Math.max(0, current.quantitySold - restoreRes.bottlesIncremented),
+            lastUpdated: new Date().toLocaleString(),
+          };
+          changedStocks.push(updatedEntry);
 
-            movementsToAdd.push({
-              id: `mov_cancel_${Date.now()}_${item.productId}`,
-              timestamp: new Date().toLocaleString(),
-              date: new Date().toISOString().split('T')[0],
-              branchId: sale.branchId,
-              branchName: sale.branchName,
-              productId: item.productId,
-              productName: item.productName,
-              sku: item.sku,
-              type: 'sale_cancellation',
-              quantityChange: restoreRes.bottlesIncremented,
-              balanceAfter: restoreRes.newCurrentStock,
-              referenceNo: sale.invoiceNo,
-              notes: `Void Decant Sale: Restored ${mlRestored}ml (${restoreRes.bottlesIncremented} bottle restored). Reason: ${reason}`,
-              userId: currentUser.id,
-              userName: currentUser.name,
-            });
-          } else {
-            const restoredCurrentStock = current.currentStock + item.quantity;
-            updated[index] = {
-              ...current,
-              quantitySold: Math.max(0, current.quantitySold - item.quantity),
-              currentStock: restoredCurrentStock,
-              lastUpdated: new Date().toLocaleString(),
-            };
-            changedStocks.push(updated[index]);
+          movementsToAdd.push({
+            id: `mov_cancel_${Date.now()}_${item.productId}`,
+            timestamp: new Date().toLocaleString(),
+            date: new Date().toISOString().split('T')[0],
+            branchId: sale.branchId,
+            branchName: sale.branchName,
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            type: 'sale_cancellation',
+            quantityChange: restoreRes.bottlesIncremented,
+            balanceAfter: restoreRes.newCurrentStock,
+            referenceNo: sale.invoiceNo,
+            notes: `Void Decant Sale: Restored ${mlRestored}ml (${restoreRes.bottlesIncremented} bottle restored). Reason: ${reason}`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+          });
+        } else {
+          const restoredCurrentStock = current.currentStock + item.quantity;
+          const updatedEntry: BranchProductStock = {
+            ...current,
+            quantitySold: Math.max(0, current.quantitySold - item.quantity),
+            currentStock: restoredCurrentStock,
+            lastUpdated: new Date().toLocaleString(),
+          };
+          changedStocks.push(updatedEntry);
 
-            movementsToAdd.push({
-              id: `mov_cancel_${Date.now()}_${item.productId}`,
-              timestamp: new Date().toLocaleString(),
-              date: new Date().toISOString().split('T')[0],
-              branchId: sale.branchId,
-              branchName: sale.branchName,
-              productId: item.productId,
-              productName: item.productName,
-              sku: item.sku,
-              type: 'sale_cancellation',
-              quantityChange: item.quantity,
-              balanceAfter: restoredCurrentStock,
-              referenceNo: sale.invoiceNo,
-              notes: `Void Sale Invoice: ${reason}`,
-              userId: currentUser.id,
-              userName: currentUser.name,
-            });
-          }
+          movementsToAdd.push({
+            id: `mov_cancel_${Date.now()}_${item.productId}`,
+            timestamp: new Date().toLocaleString(),
+            date: new Date().toISOString().split('T')[0],
+            branchId: sale.branchId,
+            branchName: sale.branchName,
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            type: 'sale_cancellation',
+            quantityChange: item.quantity,
+            balanceAfter: restoredCurrentStock,
+            referenceNo: sale.invoiceNo,
+            notes: `Void Sale Invoice: ${reason}`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+          });
         }
       }
-      return updated;
-    });
+    }
+
+    setBranchStocks((prev) =>
+      prev.map((s) => {
+        const matching = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+        return matching ? matching : s;
+      })
+    );
 
     const updatedSale: SaleTransaction = {
       ...sale,
@@ -1849,23 +1873,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     // Decrement source branch stock immediately
-    let newSourceStock = 0;
-    let changedStockRecord: BranchProductStock | null = null;
-    setBranchStocks((prev) =>
-      prev.map((s) => {
-        if (s.branchId === data.sourceBranchId && s.productId === data.productId) {
-          newSourceStock = s.currentStock - data.quantity;
-          changedStockRecord = {
-            ...s,
-            stockOut: s.stockOut + data.quantity,
-            currentStock: newSourceStock,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          return changedStockRecord;
+    const newSourceStock = sourceStock ? sourceStock.currentStock - data.quantity : 0;
+    const changedStockRecord: BranchProductStock | null = sourceStock
+      ? {
+          ...sourceStock,
+          stockOut: sourceStock.stockOut + data.quantity,
+          currentStock: newSourceStock,
+          lastUpdated: new Date().toLocaleString(),
         }
-        return s;
-      })
-    );
+      : null;
+
+    if (changedStockRecord) {
+      setBranchStocks((prev) =>
+        prev.map((s) => (s.branchId === data.sourceBranchId && s.productId === data.productId ? changedStockRecord! : s))
+      );
+    }
 
     // Movement for dispatch
     const movement: StockMovement = {
@@ -1889,7 +1911,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransfers((prev) => [newTransfer, ...prev]);
     setStockMovements((prev) => [movement, ...prev]);
 
-    // Push to Supabase Cloud
+    // Push to Supabase Cloud immediately
     syncTransferUpsert(newTransfer);
     if (changedStockRecord) syncBranchStockUpsert(changedStockRecord);
     syncMovementInsert(movement);
@@ -1915,23 +1937,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const prod = products.find((p) => p.id === trf.productId);
 
     // Increment destination branch stock
-    let newDestStock = 0;
-    let changedStockRecord: BranchProductStock | null = null;
-    setBranchStocks((prev) => {
-      const updated = [...prev];
-      const index = updated.findIndex((s) => s.branchId === trf.destinationBranchId && s.productId === trf.productId);
-      if (index >= 0) {
-        newDestStock = updated[index].currentStock + trf.quantity;
-        updated[index] = {
-          ...updated[index],
-          stockIn: updated[index].stockIn + trf.quantity,
+    const destStock = branchStocks.find((s) => s.branchId === trf.destinationBranchId && s.productId === trf.productId);
+    const newDestStock = destStock ? destStock.currentStock + trf.quantity : trf.quantity;
+    const changedStockRecord: BranchProductStock = destStock
+      ? {
+          ...destStock,
+          stockIn: destStock.stockIn + trf.quantity,
           currentStock: newDestStock,
           lastUpdated: new Date().toLocaleString(),
-        };
-        changedStockRecord = updated[index];
-      } else {
-        newDestStock = trf.quantity;
-        changedStockRecord = {
+        }
+      : {
           id: `bps_${Date.now()}`,
           branchId: trf.destinationBranchId,
           productId: trf.productId,
@@ -1945,9 +1960,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           minAlertLevel: prod?.minAlertLevel || 10,
           lastUpdated: new Date().toLocaleString(),
         };
-        updated.push(changedStockRecord);
+
+    setBranchStocks((prev) => {
+      const idx = prev.findIndex((s) => s.branchId === trf.destinationBranchId && s.productId === trf.productId);
+      if (idx >= 0) {
+        return prev.map((s, i) => (i === idx ? changedStockRecord : s));
       }
-      return updated;
+      return [...prev, changedStockRecord];
     });
 
     const movement: StockMovement = {
@@ -1981,9 +2000,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setStockMovements((prev) => [movement, ...prev]);
 
-    // Push to Supabase Cloud
+    // Push to Supabase Cloud immediately
     syncTransferUpsert(updatedTransfer);
-    if (changedStockRecord) syncBranchStockUpsert(changedStockRecord);
+    syncBranchStockUpsert(changedStockRecord);
     syncMovementInsert(movement);
 
     return { success: true, message: `Transfer ${trf.transferNo} received! Stock added to ${trf.destinationBranchName}.` };
@@ -1997,23 +2016,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Restore stock back to source branch
-    let restoredStock = 0;
-    let changedStockRecord: BranchProductStock | null = null;
-    setBranchStocks((prev) =>
-      prev.map((s) => {
-        if (s.branchId === trf.sourceBranchId && s.productId === trf.productId) {
-          restoredStock = s.currentStock + trf.quantity;
-          changedStockRecord = {
-            ...s,
-            stockOut: Math.max(0, s.stockOut - trf.quantity),
-            currentStock: restoredStock,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          return changedStockRecord;
+    const sourceStock = branchStocks.find((s) => s.branchId === trf.sourceBranchId && s.productId === trf.productId);
+    const restoredStock = sourceStock ? sourceStock.currentStock + trf.quantity : trf.quantity;
+    const changedStockRecord: BranchProductStock | null = sourceStock
+      ? {
+          ...sourceStock,
+          stockOut: Math.max(0, sourceStock.stockOut - trf.quantity),
+          currentStock: restoredStock,
+          lastUpdated: new Date().toLocaleString(),
         }
-        return s;
-      })
-    );
+      : null;
+
+    if (changedStockRecord) {
+      setBranchStocks((prev) =>
+        prev.map((s) => (s.branchId === trf.sourceBranchId && s.productId === trf.productId ? changedStockRecord! : s))
+      );
+    }
 
     const movement: StockMovement = {
       id: `mov_${Date.now()}`,
@@ -2047,7 +2065,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setStockMovements((prev) => [movement, ...prev]);
 
-    // Push to Supabase Cloud
+    // Push to Supabase Cloud immediately
     syncTransferUpsert(updatedTransfer);
     if (changedStockRecord) syncBranchStockUpsert(changedStockRecord);
     syncMovementInsert(movement);
