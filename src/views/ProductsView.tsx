@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product, MainCategoryName } from '../types';
 import {
@@ -277,43 +277,32 @@ export const ProductsView: React.FC = () => {
 
   // Dual Export handlers
   const handleExportExcel = () => {
-    const headers = canViewProfit
-      ? ['Product Name', 'SKU', 'Barcode', 'Category', 'Subcategory', 'Purchase Price', 'Selling Price', 'Margin', 'Current Stock', 'Status']
-      : ['Product Name', 'SKU', 'Barcode', 'Category', 'Subcategory', 'Selling Price', 'Current Stock', 'Status'];
+    const headers = ['Product Name', 'SKU', 'Barcode', 'Category', 'Subcategory', 'Package Size', 'Min Stock Alert', 'Current Stock', 'Status'];
 
     const dataRows = filteredProducts.map((p) => {
       const stock = selectedBranchId === 'all'
         ? branchStocks.filter((s) => s.productId === p.id).reduce((sum, s) => sum + s.currentStock, 0)
         : branchStocks.find((s) => s.productId === p.id && s.branchId === selectedBranchId)?.currentStock || 0;
 
-      if (canViewProfit) {
-        return [
-          p.name,
-          p.sku,
-          p.barcode || '—',
-          p.categoryName,
-          p.subcategory || '—',
-          p.purchasePrice,
-          p.sellingPrice,
-          p.sellingPrice - p.purchasePrice,
-          stock,
-          p.status,
-        ];
-      }
+      const size = p.packageSize || p.bottleCapacityMl || p.decantConfig?.bottleCapacityMl;
+      const unit = p.packageUnit || (p.categoryName === 'Perfume Products' ? 'ml' : 'g');
+      const sizeStr = size ? `${size} ${unit}` : '—';
+
       return [
         p.name,
         p.sku,
         p.barcode || '—',
         p.categoryName,
         p.subcategory || '—',
-        p.sellingPrice,
+        sizeStr,
+        p.minAlertLevel,
         stock,
         p.status,
       ];
     });
 
     exportReportToExcel({
-      reportTitle: 'Product Catalog & Pricing Report',
+      reportTitle: 'Product Catalog Report',
       branchName: selectedBranchId === 'all' ? 'All Branches' : branches.find((b) => b.id === selectedBranchId)?.name || 'Branch',
       categoryFilter: activeCategoryTab === 'all' ? 'All Categories' : activeCategoryTab,
       generatedBy: currentUser.name,
@@ -326,31 +315,23 @@ export const ProductsView: React.FC = () => {
   };
 
   const handleExportPdf = () => {
-    const headers = canViewProfit
-      ? ['Product Name', 'SKU', 'Category', 'Purchase Price', 'Selling Price', 'Stock', 'Status']
-      : ['Product Name', 'SKU', 'Category', 'Selling Price', 'Stock', 'Status'];
+    const headers = ['Product Name', 'SKU', 'Category', 'Package Size', 'Min Alert', 'Stock', 'Status'];
 
     const dataRows = filteredProducts.map((p) => {
       const stock = selectedBranchId === 'all'
         ? branchStocks.filter((s) => s.productId === p.id).reduce((sum, s) => sum + s.currentStock, 0)
         : branchStocks.find((s) => s.productId === p.id && s.branchId === selectedBranchId)?.currentStock || 0;
 
-      if (canViewProfit) {
-        return [
-          p.name,
-          p.sku,
-          p.categoryName,
-          formatCurrencyBDT(p.purchasePrice),
-          formatCurrencyBDT(p.sellingPrice),
-          stock,
-          p.status,
-        ];
-      }
+      const size = p.packageSize || p.bottleCapacityMl || p.decantConfig?.bottleCapacityMl;
+      const unit = p.packageUnit || (p.categoryName === 'Perfume Products' ? 'ml' : 'g');
+      const sizeStr = size ? `${size} ${unit}` : '—';
+
       return [
         p.name,
         p.sku,
         p.categoryName,
-        formatCurrencyBDT(p.sellingPrice),
+        sizeStr,
+        p.minAlertLevel,
         stock,
         p.status,
       ];
@@ -534,9 +515,8 @@ export const ProductsView: React.FC = () => {
               <tr>
                 <th className="py-3 px-4">Product Name & SKU</th>
                 <th className="py-3 px-4">Main Category</th>
-                {canViewProfit && <th className="py-3 px-4 text-right">Purchase Price</th>}
-                <th className="py-3 px-4 text-right">Selling Price</th>
-                {canViewProfit && <th className="py-3 px-4 text-right">Gross Margin</th>}
+                <th className="py-3 px-4 text-center">Net Size / Weight</th>
+                <th className="py-3 px-4 text-center">Min Alert Level</th>
                 <th className="py-3 px-4 text-center">Current Stock</th>
                 <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-right">Fast Operations</th>
@@ -549,8 +529,6 @@ export const ProductsView: React.FC = () => {
                   : branchStocks.find((s) => s.productId === product.id && s.branchId === selectedBranchId)?.currentStock || 0;
 
                 const alertStatus = calculateStockAlertStatus(currentStock, product.minAlertLevel);
-                const marginVal = product.sellingPrice - product.purchasePrice;
-                const marginPercent = ((marginVal / product.sellingPrice) * 100).toFixed(1);
 
                 return (
                   <tr key={product.id} className="hover:bg-slate-50/70 transition-colors">
@@ -561,18 +539,6 @@ export const ProductsView: React.FC = () => {
                         {product.barcode && <span>Barcode: {product.barcode}</span>}
                         {product.unitOfMeasure && <span>• {product.unitOfMeasure}</span>}
                       </div>
-                      {(() => {
-                        const size = product.packageSize || product.bottleCapacityMl || product.decantConfig?.bottleCapacityMl;
-                        const unit = product.packageUnit || (product.categoryName === 'Perfume Products' ? 'ml' : 'g');
-                        if (!size) return null;
-                        return (
-                          <div className="mt-1 flex flex-wrap items-center gap-1">
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                              ⚖️ {size} {unit} per pack
-                            </span>
-                          </div>
-                        );
-                      })()}
                     </td>
 
                     <td className="py-3 px-4">
@@ -592,28 +558,24 @@ export const ProductsView: React.FC = () => {
                       )}
                     </td>
 
-                    {canViewProfit && (
-                      <td className="py-3 px-4 text-right font-medium text-slate-600 font-mono">
-                        {product.purchasePrice > 0 ? formatCurrencyBDT(product.purchasePrice) : <span className="text-slate-300 font-normal">—</span>}
-                      </td>
-                    )}
-
-                    <td className="py-3 px-4 text-right font-bold text-slate-900 font-mono">
-                      {product.sellingPrice > 0 ? formatCurrencyBDT(product.sellingPrice) : <span className="text-slate-300 font-normal">—</span>}
+                    <td className="py-3 px-4 text-center">
+                      {(() => {
+                        const size = product.packageSize || product.bottleCapacityMl || product.decantConfig?.bottleCapacityMl;
+                        const unit = product.packageUnit || (product.categoryName === 'Perfume Products' ? 'ml' : 'g');
+                        if (!size) return <span className="text-slate-400 font-mono">—</span>;
+                        return (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            ⚖️ {size} {unit}
+                          </span>
+                        );
+                      })()}
                     </td>
 
-                    {canViewProfit && (
-                      <td className="py-3 px-4 text-right">
-                        {marginVal > 0 ? (
-                          <>
-                            <span className="text-emerald-700 font-bold font-mono">+{formatCurrencyBDT(marginVal)}</span>
-                            <span className="text-[10px] text-slate-400 block font-medium">({marginPercent}%)</span>
-                          </>
-                        ) : (
-                          <span className="text-slate-300 font-normal">—</span>
-                        )}
-                      </td>
-                    )}
+                    <td className="py-3 px-4 text-center">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        🔔 {product.minAlertLevel} units
+                      </span>
+                    </td>
 
                     <td className="py-3 px-4 text-center">
                       <span
@@ -728,7 +690,7 @@ export const ProductsView: React.FC = () => {
 
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={canViewProfit ? 8 : 6} className="py-12 text-center text-slate-400 text-xs">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
                     <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">No products match your search or category filter.</p>
                     <p className="text-[11px] text-slate-400 mt-1">Try clearing search terms or selecting another category.</p>

@@ -300,24 +300,29 @@ export const StockInView: React.FC = () => {
     ? 'All Branches (Consolidated)'
     : branches.find((b) => b.id === effectiveBranchId)?.name || 'Selected Branch';
 
-  const exportHeaders = ['Date', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Invoice Ref', 'Items', 'Total Qty', 'Total Cost', 'Remarks', 'Recorded By'];
-  const exportRows = filteredStockIns.map((tx) => [
-    tx.date,
-    tx.referenceNo,
-    tx.branchName,
-    tx.items[0]?.categoryName || 'General',
-    tx.supplierName || '—',
-    tx.supplierInvoiceNo || '—',
-    tx.items.map((i) => `${i.productName} (x${i.quantity} @ ${formatCurrencyBDT(i.purchasePrice)})`).join('; '),
-    tx.totalQuantity,
-    formatCurrencyBDT(tx.totalPurchaseCost),
-    tx.remarks || '—',
-    tx.createdByName,
-  ]);
+  const exportHeaders = ['Date', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Invoice Ref', 'Items', 'Total Qty', 'Total Purchase Cost', 'Total Selling Value', 'Remarks', 'Recorded By'];
+  const exportRows = filteredStockIns.map((tx) => {
+    const totalSelling = tx.items.reduce((s, it) => s + (it.quantity * (it.sellingPrice || 0)), 0);
+    return [
+      tx.date,
+      tx.referenceNo,
+      tx.branchName,
+      tx.items[0]?.categoryName || 'General',
+      tx.supplierName || '—',
+      tx.supplierInvoiceNo || '—',
+      tx.items.map((i) => `${i.productName} (x${i.quantity} @ Cost: ${formatCurrencyBDT(i.purchasePrice)}${i.sellingPrice ? ` / Sell: ${formatCurrencyBDT(i.sellingPrice)}` : ''})`).join('; '),
+      tx.totalQuantity,
+      formatCurrencyBDT(tx.totalPurchaseCost),
+      totalSelling > 0 ? formatCurrencyBDT(totalSelling) : '—',
+      tx.remarks || '—',
+      tx.createdByName,
+    ];
+  });
 
   const handleExportExcel = () => {
     const totalUnits = filteredStockIns.reduce((sum, t) => sum + t.totalQuantity, 0);
     const totalCostAmt = filteredStockIns.reduce((sum, t) => sum + t.totalPurchaseCost, 0);
+    const totalSellAmt = filteredStockIns.reduce((sum, t) => sum + t.items.reduce((s, it) => s + (it.quantity * (it.sellingPrice || 0)), 0), 0);
 
     exportReportToExcel({
       reportTitle: 'Stock In & Procurement Report',
@@ -330,6 +335,7 @@ export const StockInView: React.FC = () => {
         { label: 'Total Inward Transactions', value: `${filteredStockIns.length} shipments` },
         { label: 'Total Units Stocked In', value: `${totalUnits} units` },
         { label: 'Total Procurement Cost', value: formatCurrencyBDT(totalCostAmt) },
+        { label: 'Total Selling Value', value: formatCurrencyBDT(totalSellAmt) },
       ],
     });
   };
@@ -337,18 +343,23 @@ export const StockInView: React.FC = () => {
   const handleExportPdf = () => {
     const totalUnits = filteredStockIns.reduce((sum, t) => sum + t.totalQuantity, 0);
     const totalCostAmt = filteredStockIns.reduce((sum, t) => sum + t.totalPurchaseCost, 0);
+    const totalSellAmt = filteredStockIns.reduce((sum, t) => sum + t.items.reduce((s, it) => s + (it.quantity * (it.sellingPrice || 0)), 0), 0);
 
-    const pdfHeaders = ['Date', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Qty', 'Total Cost', 'Recorded By'];
-    const pdfRows = filteredStockIns.map((tx) => [
-      tx.date,
-      tx.referenceNo,
-      tx.branchName,
-      tx.items[0]?.categoryName || 'General',
-      tx.supplierName || '—',
-      tx.totalQuantity,
-      formatCurrencyBDT(tx.totalPurchaseCost),
-      tx.createdByName,
-    ]);
+    const pdfHeaders = ['Date', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Qty', 'Total Purchase Cost', 'Total Selling Value', 'Recorded By'];
+    const pdfRows = filteredStockIns.map((tx) => {
+      const totalSelling = tx.items.reduce((s, it) => s + (it.quantity * (it.sellingPrice || 0)), 0);
+      return [
+        tx.date,
+        tx.referenceNo,
+        tx.branchName,
+        tx.items[0]?.categoryName || 'General',
+        tx.supplierName || '—',
+        tx.totalQuantity,
+        formatCurrencyBDT(tx.totalPurchaseCost),
+        totalSelling > 0 ? formatCurrencyBDT(totalSelling) : '—',
+        tx.createdByName,
+      ];
+    });
 
     exportReportToPdf({
       reportTitle: 'Stock In & Procurement Report',
@@ -361,6 +372,7 @@ export const StockInView: React.FC = () => {
         { label: 'Total Inward Records', value: filteredStockIns.length },
         { label: 'Total Units Stocked In', value: totalUnits },
         { label: 'Total Procurement Cost', value: formatCurrencyBDT(totalCostAmt) },
+        { label: 'Total Selling Value', value: formatCurrencyBDT(totalSellAmt) },
       ],
     });
   };
@@ -510,6 +522,7 @@ export const StockInView: React.FC = () => {
                 <th className="py-3 px-4">Items Summary</th>
                 <th className="py-3 px-4 text-center">Total Quantity</th>
                 <th className="py-3 px-4 text-right">Total Purchase Cost</th>
+                <th className="py-3 px-4 text-right">Total Selling Value</th>
                 <th className="py-3 px-4 text-right">Recorded By</th>
                 {isSuperAdmin && <th className="py-3 px-4 text-right">Actions</th>}
               </tr>
@@ -566,6 +579,12 @@ export const StockInView: React.FC = () => {
                   <td className="py-3 px-4 text-right font-bold text-slate-900 font-mono">
                     {formatCurrencyBDT(tx.totalPurchaseCost)}
                   </td>
+                  <td className="py-3 px-4 text-right font-bold text-emerald-700 font-mono">
+                    {(() => {
+                      const totalSelling = tx.items.reduce((s, it) => s + (it.quantity * (it.sellingPrice || 0)), 0);
+                      return totalSelling > 0 ? formatCurrencyBDT(totalSelling) : '—';
+                    })()}
+                  </td>
                   <td className="py-3 px-4 text-right text-[11px] text-slate-500">
                     {tx.createdByName}
                   </td>
@@ -597,7 +616,7 @@ export const StockInView: React.FC = () => {
 
               {filteredStockIns.length === 0 && (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 9 : 8} className="py-12 text-center text-slate-400 text-xs">
+                  <td colSpan={isSuperAdmin ? 10 : 9} className="py-12 text-center text-slate-400 text-xs">
                     No stock in records found matching selected category.
                   </td>
                 </tr>
@@ -858,13 +877,19 @@ export const StockInView: React.FC = () => {
                   })}
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center text-xs">
+                <div className="mt-3 pt-3 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs gap-2">
                   <span className="font-semibold text-slate-600">
                     Total Quantity: <span className="text-slate-900 font-bold">{totalQty} units</span>
                   </span>
                   <span className="font-semibold text-slate-600">
                     Total Purchase Cost:{' '}
                     <span className="text-slate-900 font-bold text-sm font-mono">{formatCurrencyBDT(totalCost)}</span>
+                  </span>
+                  <span className="font-semibold text-slate-600">
+                    Total Selling Value:{' '}
+                    <span className="text-emerald-700 font-bold text-sm font-mono">
+                      {formatCurrencyBDT(rows.reduce((sum, r) => sum + (r.quantity * (r.sellingPrice || 0)), 0))}
+                    </span>
                   </span>
                 </div>
               </div>

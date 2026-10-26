@@ -18,10 +18,36 @@ import {
   Flame,
   Pencil,
   Trash2,
+  ShoppingCart,
 } from 'lucide-react';
 import { canStockOut } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
+
+export interface UnifiedStockOutItem {
+  id: string;
+  sourceType: 'sale' | 'manual';
+  referenceNo: string;
+  date: string;
+  branchId: string;
+  branchName: string;
+  categoryName: string;
+  reason: string;
+  items: {
+    id: string;
+    productName: string;
+    sku: string;
+    categoryName?: string;
+    quantity: number;
+    isDecant?: boolean;
+    decantVariantName?: string;
+  }[];
+  totalQuantity: number;
+  referenceDocNo?: string;
+  remarks?: string;
+  createdByName: string;
+  originalManual?: StockOutTransaction;
+}
 
 export const StockOutView: React.FC = () => {
   const {
@@ -29,6 +55,7 @@ export const StockOutView: React.FC = () => {
     branches,
     branchStocks,
     stockOuts,
+    sales,
     createStockOut,
     updateStockOut,
     deleteStockOut,
@@ -41,6 +68,7 @@ export const StockOutView: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>(selectedCategoryName || 'all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'sale' | 'manual'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Super Admin Delete state
@@ -205,23 +233,80 @@ export const StockOutView: React.FC = () => {
   const isBranchRestricted = currentUser.role === 'manager' && !!currentUser.branchId;
   const effectiveBranchId = isBranchRestricted ? currentUser.branchId! : selectedBranchId;
 
+  // Unify Manual Stock Outs and Sales Deductions
+  const allStockOutItems = useMemo<UnifiedStockOutItem[]>(() => {
+    const manualList: UnifiedStockOutItem[] = stockOuts.map((stk) => ({
+      id: `manual_${stk.id}`,
+      sourceType: 'manual',
+      referenceNo: stk.referenceNo,
+      date: stk.date,
+      branchId: stk.branchId,
+      branchName: stk.branchName,
+      categoryName: stk.items[0]?.categoryName || 'General',
+      reason: stk.reason,
+      items: stk.items.map((it) => ({
+        id: it.id,
+        productName: it.productName,
+        sku: it.sku,
+        quantity: it.quantity,
+      })),
+      totalQuantity: stk.totalQuantity,
+      referenceDocNo: stk.referenceDocNo,
+      remarks: stk.remarks,
+      createdByName: stk.createdByName,
+      originalManual: stk,
+    }));
+
+    const salesList: UnifiedStockOutItem[] = sales
+      .filter((s) => s.status !== 'cancelled')
+      .map((sale) => ({
+        id: `sale_${sale.id}`,
+        sourceType: 'sale',
+        referenceNo: sale.invoiceNo,
+        date: sale.date,
+        branchId: sale.branchId,
+        branchName: sale.branchName,
+        categoryName: sale.items[0]?.categoryName || 'General',
+        reason: 'Customer Sale (POS Invoice)',
+        items: sale.items.map((it) => ({
+          id: it.id,
+          productName: it.productName,
+          sku: it.sku,
+          categoryName: it.categoryName,
+          quantity: it.quantity,
+          isDecant: it.isDecant,
+          decantVariantName: it.decantVariantName,
+        })),
+        totalQuantity: sale.totalQuantitySold,
+        referenceDocNo: sale.customerName ? `Customer: ${sale.customerName}` : undefined,
+        remarks: sale.notes ? `${sale.notes} (${sale.paymentMethod})` : `Paid via ${sale.paymentMethod}`,
+        createdByName: sale.createdByName,
+      }));
+
+    const combined = [...manualList, ...salesList];
+    combined.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return combined;
+  }, [stockOuts, sales]);
+
   // Filter history
   const filteredStockOuts = useMemo(() => {
-    return stockOuts.filter((stk) => {
+    return allStockOutItems.filter((stk) => {
+      const matchesSource = sourceFilter === 'all' || stk.sourceType === sourceFilter;
       const matchesBranch = effectiveBranchId === 'all' || stk.branchId === effectiveBranchId;
       const matchesCategory =
         activeCategoryTab === 'all' ||
-        stk.items.some((i) => i.categoryName === activeCategoryTab);
+        stk.items.some((i) => i.categoryName === activeCategoryTab || stk.categoryName === activeCategoryTab);
 
       const matchesSearch =
         stk.referenceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (stk.referenceDocNo && stk.referenceDocNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         stk.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (stk.remarks && stk.remarks.toLowerCase().includes(searchTerm.toLowerCase())) ||
         stk.items.some((i) => i.productName.toLowerCase().includes(searchTerm.toLowerCase()) || i.sku.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      return matchesBranch && matchesCategory && matchesSearch;
+      return matchesSource && matchesBranch && matchesCategory && matchesSearch;
     });
-  }, [stockOuts, effectiveBranchId, activeCategoryTab, searchTerm]);
+  }, [allStockOutItems, sourceFilter, effectiveBranchId, activeCategoryTab, searchTerm]);
 
   const activeBranchLabel = isBranchRestricted
     ? currentUser.branchName || 'Assigned Branch'
@@ -229,13 +314,13 @@ export const StockOutView: React.FC = () => {
     ? 'All Branches (Consolidated)'
     : branches.find((b) => b.id === effectiveBranchId)?.name || 'Selected Branch';
 
-  const exportHeaders = ['Date', 'SOUT Ref', 'Branch', 'Category', 'Reason', 'Ref Doc', 'Items Deducted', 'Total Quantity', 'Remarks', 'Authorized By'];
+  const exportHeaders = ['Date', 'Ref No', 'Branch', 'Category', 'Out Type / Reason', 'Ref Doc / Customer', 'Items Deducted', 'Total Quantity', 'Remarks', 'Authorized By'];
   const exportRows = filteredStockOuts.map((tx) => [
     tx.date,
     tx.referenceNo,
     tx.branchName,
-    tx.items[0]?.categoryName || 'General',
-    tx.reason,
+    tx.categoryName || 'General',
+    tx.sourceType === 'sale' ? 'Sale (বিক্রয়)' : tx.reason,
     tx.referenceDocNo || '—',
     tx.items.map((i) => `${i.productName} (${i.quantity} units)`).join('; '),
     tx.totalQuantity,
@@ -247,14 +332,14 @@ export const StockOutView: React.FC = () => {
     const totalOutQty = filteredStockOuts.reduce((sum, t) => sum + t.totalQuantity, 0);
 
     exportReportToExcel({
-      reportTitle: 'Stock Out & Adjustments Report',
+      reportTitle: 'Stock Out & Deductions Report',
       branchName: activeBranchLabel,
       categoryFilter: activeCategoryTab === 'all' ? 'All Categories' : activeCategoryTab,
       generatedBy: `${currentUser.name} (${currentUser.role.replace('_', ' ')})`,
       headers: exportHeaders,
       dataRows: exportRows,
       summaryStats: [
-        { label: 'Total Adjustment Events', value: `${filteredStockOuts.length} entries` },
+        { label: 'Total Stock Out Events', value: `${filteredStockOuts.length} entries` },
         { label: 'Total Units Deducted', value: `${totalOutQty} units` },
       ],
     });
@@ -263,27 +348,27 @@ export const StockOutView: React.FC = () => {
   const handleExportPdf = () => {
     const totalOutQty = filteredStockOuts.reduce((sum, t) => sum + t.totalQuantity, 0);
 
-    const pdfHeaders = ['Date', 'SOUT Ref', 'Branch', 'Category', 'Reason', 'Qty Deducted', 'Doc / Remarks', 'Authorized By'];
+    const pdfHeaders = ['Date', 'Ref No', 'Branch', 'Category', 'Reason', 'Qty Deducted', 'Doc / Remarks', 'Authorized By'];
     const pdfRows = filteredStockOuts.map((tx) => [
       tx.date,
       tx.referenceNo,
       tx.branchName,
-      tx.items[0]?.categoryName || 'General',
-      tx.reason,
+      tx.categoryName || 'General',
+      tx.sourceType === 'sale' ? 'Sale (বিক্রয়)' : tx.reason,
       tx.totalQuantity,
       tx.remarks || tx.referenceDocNo || '—',
       tx.createdByName,
     ]);
 
     exportReportToPdf({
-      reportTitle: 'Stock Out & Adjustments Report',
+      reportTitle: 'Stock Out & Deductions Report',
       branchName: activeBranchLabel,
       categoryFilter: activeCategoryTab === 'all' ? 'All Categories' : activeCategoryTab,
       generatedBy: currentUser.name,
       headers: pdfHeaders,
       dataRows: pdfRows,
       summaryStats: [
-        { label: 'Total Adjustment Events', value: filteredStockOuts.length },
+        { label: 'Total Stock Out Events', value: filteredStockOuts.length },
         { label: 'Total Units Deducted', value: totalOutQty },
       ],
     });
@@ -300,6 +385,18 @@ export const StockOutView: React.FC = () => {
       case 'Authorized Adjustment':
         return <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">Adjustment</span>;
     }
+  };
+
+  const renderReasonBadge = (stk: UnifiedStockOutItem) => {
+    if (stk.sourceType === 'sale') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center space-x-1">
+          <span>🛒</span>
+          <span>Sold / বিক্রয়</span>
+        </span>
+      );
+    }
+    return getReasonBadge(stk.reason as StockOutReason);
   };
 
   return (
@@ -356,7 +453,7 @@ export const StockOutView: React.FC = () => {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            All Stock Outs ({stockOuts.length})
+            All Divisions ({allStockOutItems.length})
           </button>
 
           <button
@@ -368,7 +465,7 @@ export const StockOutView: React.FC = () => {
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Cosmetic Products</span>
+            <span>Cosmetics</span>
           </button>
 
           <button
@@ -380,7 +477,7 @@ export const StockOutView: React.FC = () => {
             }`}
           >
             <Apple className="w-3.5 h-3.5" />
-            <span>Food Products</span>
+            <span>Foods</span>
           </button>
 
           <button
@@ -392,7 +489,7 @@ export const StockOutView: React.FC = () => {
             }`}
           >
             <Flame className="w-3.5 h-3.5" />
-            <span>Perfume Products</span>
+            <span>Perfumes</span>
           </button>
         </div>
 
@@ -420,13 +517,44 @@ export const StockOutView: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter and Search */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="relative flex-1">
+      {/* Source Type Filter (Sales vs Manual) and Search */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Source Filter Tabs */}
+        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => setSourceFilter('all')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              sourceFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            All Stock Outs ({allStockOutItems.length})
+          </button>
+          <button
+            onClick={() => setSourceFilter('sale')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1 transition-all ${
+              sourceFilter === 'sale' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            <span>Sales Out / বিক্রয় ({allStockOutItems.filter(x => x.sourceType === 'sale').length})</span>
+          </button>
+          <button
+            onClick={() => setSourceFilter('manual')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1 transition-all ${
+              sourceFilter === 'manual' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-800 hover:bg-amber-50'
+            }`}
+          >
+            <Boxes className="w-3.5 h-3.5" />
+            <span>Manual Adjustments ({allStockOutItems.filter(x => x.sourceType === 'manual').length})</span>
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by SOUT Reference, reason, product, ref doc..."
+            placeholder="Search by Invoice / SOUT Ref, product, reason, customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-800"
@@ -470,24 +598,35 @@ export const StockOutView: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-3 px-4">
-                    {getReasonBadge(tx.reason)}
+                    {renderReasonBadge(tx)}
                   </td>
                   <td className="py-3 px-4">
                     {tx.items.map((it) => (
                       <div key={it.id} className="text-xs">
                         <span className="font-semibold text-slate-900">{it.productName}</span>
-                        <span className="text-slate-400 font-mono ml-1.5">({it.sku})</span>
+                        <span className="text-slate-500 font-mono ml-1.5 font-bold">(-{it.quantity} units)</span>
+                        {it.isDecant && (
+                          <span className="ml-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1 rounded border border-indigo-200">
+                            🧴 {it.decantVariantName || 'Decant'}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </td>
                   <td className="py-3 px-4 text-center">
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    <span
+                      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                        tx.sourceType === 'sale'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}
+                    >
                       -{tx.totalQuantity} units
                     </span>
                   </td>
                   <td className="py-3 px-4">
                     {tx.referenceDocNo && (
-                      <div className="font-mono text-[11px] text-slate-700">Doc: {tx.referenceDocNo}</div>
+                      <div className="font-mono text-[11px] text-slate-700">{tx.referenceDocNo}</div>
                     )}
                     {tx.remarks && <div className="text-[11px] text-slate-500 italic">{tx.remarks}</div>}
                   </td>
@@ -496,25 +635,31 @@ export const StockOutView: React.FC = () => {
                   </td>
                   {isSuperAdmin && (
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center space-x-1.5">
-                        <button
-                          onClick={() => openEditStockOutModal(tx)}
-                          title="Edit Stock Out (Super Admin Only)"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setStockOutToDelete(tx);
-                            setDeleteNotice(null);
-                          }}
-                          title="Delete Stock Out (Super Admin Only)"
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {tx.sourceType === 'manual' && tx.originalManual ? (
+                        <div className="inline-flex items-center space-x-1.5">
+                          <button
+                            onClick={() => openEditStockOutModal(tx.originalManual!)}
+                            title="Edit Stock Out (Super Admin Only)"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setStockOutToDelete(tx.originalManual!);
+                              setDeleteNotice(null);
+                            }}
+                            title="Delete Stock Out (Super Admin Only)"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                          POS Invoice
+                        </span>
+                      )}
                     </td>
                   )}
                 </tr>
