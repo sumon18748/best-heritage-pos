@@ -16,11 +16,16 @@ import { CashBankExpensesView } from './views/CashBankExpensesView';
 import { ReportsView } from './views/ReportsView';
 import { UserManagementView } from './views/UserManagementView';
 import { SettingsView } from './views/SettingsView';
+import { LoginView } from './views/LoginView';
 import { Menu, X, LayoutDashboard, ShoppingCart, Boxes, AlertTriangle, Lock } from 'lucide-react';
 
 const MainContent: React.FC = () => {
-  const { activeTab, setActiveTab, currentUser, userPermissions } = useApp();
+  const { activeTab, setActiveTab, currentUser, userPermissions, isAuthenticated } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
 
   const renderActiveView = () => {
     // Check permission for active tab

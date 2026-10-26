@@ -1,27 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Settings,
   Database,
   Building2,
-  RefreshCw,
   Server,
   ShieldCheck,
-  Check,
-  AlertTriangle,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { resetAllDataToDefault, branches, products } = useApp();
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetDone, setResetDone] = useState(false);
-
-  const handleReset = () => {
-    resetAllDataToDefault();
-    setShowResetConfirm(false);
-    setResetDone(true);
-    setTimeout(() => setResetDone(false), 3000);
-  };
+  const { branches, products } = useApp();
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -35,13 +23,6 @@ export const SettingsView: React.FC = () => {
           Configuration parameters, database schema mapping, and operational profiles for Best Heritage Group.
         </p>
       </div>
-
-      {resetDone && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center space-x-2">
-          <Check className="w-4 h-4 text-emerald-600" />
-          <span>All Best Heritage demo branches, products, stock levels, and sales have been restored to factory default.</span>
-        </div>
-      )}
 
       {/* Brand Identity & Specs Card */}
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-4">
@@ -107,51 +88,6 @@ export const SettingsView: React.FC = () => {
           ))}
         </div>
       </div>
-
-      {/* Reset & Maintenance */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-3">
-        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center space-x-2 border-b border-slate-100 pb-2.5 text-rose-700">
-          <AlertTriangle className="w-4 h-4 text-rose-600" />
-          <span>System Reset & Testing Data</span>
-        </h2>
-        <p className="text-xs text-slate-600">
-          Restore initial testing catalog for Best Heritage (4 branches, 8 master products, stock-in histories, stock-out adjustments, and sample sales).
-        </p>
-
-        <button
-          onClick={() => setShowResetConfirm(true)}
-          className="inline-flex items-center space-x-2 px-4 py-2 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Restore Factory Demo Data</span>
-        </button>
-      </div>
-
-      {/* Confirmation Modal */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-sm w-full p-6 text-slate-800 shadow-2xl">
-            <h3 className="text-base font-bold text-slate-900">Confirm Reset?</h3>
-            <p className="text-xs text-slate-600 mt-2">
-              This will overwrite any newly entered products, branches, or sales and restore clean seed records.
-            </p>
-            <div className="mt-5 flex justify-end space-x-3">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReset}
-                className="px-4 py-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow"
-              >
-                Yes, Reset Now
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

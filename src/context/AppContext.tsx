@@ -184,11 +184,16 @@ interface AppContextType {
   getProductStockForBranch: (productId: string, branchId: string) => BranchProductStock | undefined;
   getProductTotalStockAcrossBranches: (productId: string) => number;
   resetAllDataToDefault: () => void;
+
+  // Authentication
+  isAuthenticated: boolean;
+  login: (identifier: string, password: string) => { success: boolean; message: string };
+  logout: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'bestheritage_live_v1';
+const STORAGE_KEY = 'bestheritage_live_v2';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUserState] = useState<User>(() => {
@@ -197,6 +202,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return saved ? JSON.parse(saved) : INITIAL_USERS[0];
     } catch {
       return INITIAL_USERS[0];
+    }
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const savedAuth = localStorage.getItem(`${STORAGE_KEY}_auth`);
+      return savedAuth === 'true';
+    } catch {
+      return false;
     }
   });
 
@@ -436,6 +450,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user.role === 'manager' && user.branchId) {
       setSelectedBranchIdState(user.branchId);
     }
+  };
+
+  const login = (identifier: string, password: string): { success: boolean; message: string } => {
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    if (!cleanId || !cleanPass) {
+      return { success: false, message: 'ইউজার আইডি এবং পাসওয়ার্ড উভয়ই প্রদান করুন।' };
+    }
+
+    const matchedUser = users.find((u) => {
+      const matchesUsername = u.username?.toLowerCase() === cleanId;
+      const matchesEmail = u.email.toLowerCase() === cleanId;
+      const matchesId = u.id.toLowerCase() === cleanId;
+      const matchesName = u.name.toLowerCase() === cleanId;
+      return matchesUsername || matchesEmail || matchesId || matchesName;
+    });
+
+    if (!matchedUser) {
+      return { success: false, message: 'ইউজার আইডি খুঁজে পাওয়া যায়নি! অনুগ্রহ করে সঠিক ইউজার আইডি লিখুন।' };
+    }
+
+    if (matchedUser.status !== 'active') {
+      return { success: false, message: 'এই অ্যাকাউন্টটি নিষ্ক্রিয় (Inactive)। অ্যাডমিনের সাথে যোগাযোগ করুন।' };
+    }
+
+    const expectedPassword = matchedUser.password || '123456';
+    if (cleanPass !== expectedPassword) {
+      return { success: false, message: 'ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিন।' };
+    }
+
+    setCurrentUserState(matchedUser);
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_auth`, 'true');
+      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(matchedUser));
+    } catch {
+      // ignore
+    }
+
+    if (matchedUser.role === 'manager' && matchedUser.branchId) {
+      setSelectedBranchIdState(matchedUser.branchId);
+    } else {
+      setSelectedBranchIdState('all');
+    }
+
+    return { success: true, message: 'সফলভাবে লগইন হয়েছে।' };
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    try {
+      localStorage.removeItem(`${STORAGE_KEY}_auth`);
+    } catch {
+      // ignore
+    }
+    setActiveTab('dashboard');
   };
 
   const setSelectedBranchId = (branchId: string) => {
@@ -1917,6 +1988,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getProductStockForBranch,
         getProductTotalStockAcrossBranches,
         resetAllDataToDefault,
+        isAuthenticated,
+        login,
+        logout,
       }}
     >
       {children}

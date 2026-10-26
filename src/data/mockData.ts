@@ -40,97 +40,61 @@ export const INITIAL_CATEGORIES: Category[] = [
 ];
 
 // --------------------------------------------------------------------
-// 2. Initial Users (Super Admin, Operations Admin, Branch Managers)
+// 2. Initial Users (Super Admin, Operations Admin, Branch Manager)
 // --------------------------------------------------------------------
 export const INITIAL_USERS: User[] = [
   {
     id: 'usr_super',
-    name: 'Super Admin',
+    username: 'bestheritage',
+    name: 'বেস্ট হেরিটেজ',
     email: 'admin@bestheritage.com',
     role: 'super_admin',
-    phone: '+880 1700-000000',
+    phone: '+880 1700-000001',
+    password: '123456',
     status: 'active',
     permissions: getDefaultPermissionsForRole('super_admin'),
     createdAt: '2026-01-01',
   },
   {
     id: 'usr_admin',
-    name: 'Operations Admin',
-    email: 'operations@bestheritage.com',
+    username: 'sumon',
+    name: 'সুমন',
+    email: 'sumon@bestheritage.com',
     role: 'admin',
-    phone: '+880 1711-111222',
+    phone: '+880 1700-000002',
+    password: '123456',
     status: 'active',
     permissions: getDefaultPermissionsForRole('admin'),
     createdAt: '2026-01-10',
   },
   {
-    id: 'usr_manager_dhn',
-    name: 'Dhanmondi Branch Manager',
-    email: 'dhanmondi@bestheritage.com',
+    id: 'usr_manager',
+    username: 'sohel',
+    name: 'সোহেল আহমেদ',
+    email: 'sohel@bestheritage.com',
     role: 'manager',
-    branchId: 'br_dhn',
-    branchName: 'Dhanmondi Flagship',
-    phone: '+880 1819-333444',
+    branchId: 'br_aftabnagar',
+    branchName: 'আফতাবনগর ব্রাঞ্চ',
+    phone: '+880 1700-000003',
+    password: '123456',
     status: 'active',
     permissions: getDefaultPermissionsForRole('manager'),
     createdAt: '2026-01-15',
   },
-  {
-    id: 'usr_manager_gsh',
-    name: 'Gulshan Branch Manager',
-    email: 'gulshan@bestheritage.com',
-    role: 'manager',
-    branchId: 'br_gsh',
-    branchName: 'Gulshan Premium Outlet',
-    phone: '+880 1912-555666',
-    status: 'active',
-    permissions: getDefaultPermissionsForRole('manager'),
-    createdAt: '2026-01-20',
-  },
-  {
-    id: 'usr_manager_utt',
-    name: 'Uttara Branch Manager',
-    email: 'uttara@bestheritage.com',
-    role: 'manager',
-    branchId: 'br_utt',
-    branchName: 'Uttara Express Branch',
-    phone: '+880 1610-777888',
-    status: 'active',
-    permissions: getDefaultPermissionsForRole('manager'),
-    createdAt: '2026-02-01',
-  },
 ];
 
 // --------------------------------------------------------------------
-// 3. Initial Retail Branches
+// 3. Initial Retail Branch (Aftabnagar)
 // --------------------------------------------------------------------
 export const INITIAL_BRANCHES: Branch[] = [
   {
-    id: 'br_dhn',
-    name: 'Dhanmondi Flagship',
-    code: 'DHN-01',
-    address: 'House 42, Road 7, Dhanmondi, Dhaka',
-    contactNumber: '+880 1711-000001',
+    id: 'br_aftabnagar',
+    name: 'আফতাবনগর ব্রাঞ্চ',
+    code: 'AFT-01',
+    address: 'আফতাবনগর, বাড্ডা, ঢাকা',
+    contactNumber: '+880 1700-000000',
     isActive: true,
     createdAt: '2026-01-01',
-  },
-  {
-    id: 'br_gsh',
-    name: 'Gulshan Premium Outlet',
-    code: 'GSH-02',
-    address: 'Plot 15, Block C, Gulshan-1, Dhaka',
-    contactNumber: '+880 1711-000002',
-    isActive: true,
-    createdAt: '2026-01-10',
-  },
-  {
-    id: 'br_utt',
-    name: 'Uttara Express Branch',
-    code: 'UTT-03',
-    address: 'Sector 3, Jashimuddin Ave, Uttara, Dhaka',
-    contactNumber: '+880 1711-000003',
-    isActive: true,
-    createdAt: '2026-02-01',
   },
 ];
 

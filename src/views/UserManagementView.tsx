@@ -1086,30 +1086,6 @@ export const UserManagementView: React.FC = () => {
             </div>
           </div>
 
-          {/* Instant Persona Testing Banner */}
-          {firstUserOfTargetRole && (
-            <div className="bg-slate-900 text-white rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800">
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-                  <ArrowRightLeft className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Live Role Testing &amp; Verification</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Switch session to <strong>{firstUserOfTargetRole.name}</strong> ({firstUserOfTargetRole.role}) to see how their sidebar instantly reflects your menu rules.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setCurrentUser(firstUserOfTargetRole)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center space-x-1.5 self-start sm:self-auto cursor-pointer shrink-0"
-              >
-                <span>Switch to {firstUserOfTargetRole.name}</span>
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
         </div>
       )}
 

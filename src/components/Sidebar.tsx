@@ -18,6 +18,7 @@ import {
   UserCheck,
   ArrowLeftRight,
   Wallet,
+  LogOut,
 } from 'lucide-react';
 import { calculateStockAlertStatus } from '../utils/stockCalculations';
 
@@ -31,7 +32,7 @@ interface NavItem {
 }
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, currentUser, branchStocks, selectedBranchId, transfers, userPermissions } = useApp();
+  const { activeTab, setActiveTab, currentUser, branchStocks, selectedBranchId, transfers, userPermissions, logout } = useApp();
 
   const relevantStocks = selectedBranchId === 'all'
     ? branchStocks
@@ -141,6 +142,17 @@ export const Sidebar: React.FC = () => {
             </button>
           );
         })}
+      </div>
+
+      {/* Logout button at bottom of sidebar */}
+      <div className="p-3 border-t border-slate-800">
+        <button
+          onClick={logout}
+          className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-900/40 transition-colors cursor-pointer"
+        >
+          <LogOut className="w-4 h-4 text-rose-400" />
+          <span>লগআউট (Logout)</span>
+        </button>
       </div>
 
     </aside>

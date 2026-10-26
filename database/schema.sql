@@ -273,21 +273,21 @@ CREATE TABLE IF NOT EXISTS `stock_movements` (
 -- Initial Seed Data
 -- ====================================================================
 
--- 1. Branches
+-- 1. Single Branch (Aftabnagar Branch)
 INSERT INTO `branches` (`id`, `name`, `code`, `address`, `phone`, `status`) VALUES
-('br_dhanmondi', 'Dhanmondi Flagship', 'DHAN-01', 'House 42, Road 7, Dhanmondi, Dhaka', '+880 1711-000001', 'active'),
-('br_gulshan', 'Gulshan Premium Outlet', 'GUL-02', 'Plot 15, Block C, Gulshan-1, Dhaka', '+880 1711-000002', 'active'),
-('br_uttara', 'Uttara Express Branch', 'UTT-03', 'Sector 3, Jashimuddin Ave, Uttara, Dhaka', '+880 1711-000003', 'active')
+('br_aftabnagar', 'আফতাবনগর ব্রাঞ্চ', 'AFT-01', 'আফতাবনগর, বাড্ডা, ঢাকা', '+880 1700-000000', 'active')
 ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
 
 -- 2. Main Categories
 INSERT INTO `categories` (`id`, `name`, `description`, `is_active`) VALUES
-('cat_perfume', 'Perfume Products', 'Fragrances, Attars, Eau de Parfum, Decants', 1),
-('cat_food', 'Food Items', 'Premium dry fruits, dates, honey, organic snacks', 1),
-('cat_cosmetic', 'Cosmetic Products', 'Skincare, serums, hair care, personal grooming', 1)
+('cat_perfumes', 'Perfume Products', 'Fragrances, Attars, Eau de Parfum, Decants', 1),
+('cat_food', 'Food Products', 'Pure honey, aromatic rice, cold-pressed oils, organic teas', 1),
+('cat_cosmetics', 'Cosmetic Products', 'Skincare, serums, cleansers, creams, beauty essentials', 1)
 ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
 
--- 3. Super Admin User
+-- 3. Users (Super Admin, Admin, Branch Manager)
 INSERT INTO `users` (`id`, `name`, `email`, `password_hash`, `phone`, `role`, `branch_id`, `status`) VALUES
-('usr_super_admin', 'Management Authority', 'admin@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000000', 'super_admin', NULL, 'active')
+('usr_super', 'বেস্ট হেরিটেজ', 'admin@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000001', 'super_admin', NULL, 'active'),
+('usr_admin', 'সুমন', 'sumon@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000002', 'admin', NULL, 'active'),
+('usr_manager', 'সোহেল আহমেদ', 'sohel@bestheritage.com', '$2b$10$YourHashedPasswordHere', '+880 1700-000003', 'manager', 'br_aftabnagar', 'active')
 ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);

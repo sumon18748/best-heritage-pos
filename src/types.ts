@@ -13,6 +13,7 @@ export type RolePermissionsMap = Record<UserRole, UserPermissions>;
 
 export interface User {
   id: string;
+  username?: string;
   name: string;
   email: string;
   role: UserRole;
