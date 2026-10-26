@@ -46,6 +46,26 @@ import {
   calculateDecantStockDeduction,
   calculateDecantCancelRestore,
 } from '../utils/stockCalculations';
+import {
+  fetchAllCollections,
+  syncProductUpsert,
+  syncProductDelete,
+  syncBranchStockUpsert,
+  syncStockInUpsert,
+  syncStockOutUpsert,
+  syncSaleUpsert,
+  syncTransferUpsert,
+  syncExpenseUpsert,
+  syncExpenseDelete,
+  syncExpenseCategoryUpsert,
+  syncExpenseCategoryDelete,
+  syncBranchUpsert,
+  syncBranchDelete,
+  syncUserUpsert,
+  syncUserDelete,
+  syncOpeningBalanceUpsert,
+  syncMovementInsert,
+} from '../lib/supabaseSync';
 
 interface AppContextType {
   currentUser: User;
@@ -185,11 +205,12 @@ interface AppContextType {
   getProductTotalStockAcrossBranches: (productId: string) => number;
   resetAllDataToDefault: () => void;
 
-  // Authentication
+  // Authentication & Cloud Sync
   isAuthenticated: boolean;
   login: (identifier: string, password: string) => { success: boolean; message: string };
   logout: () => void;
   getNextUserId: () => string;
+  isCloudSyncing: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -379,6 +400,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_expense_categories`, JSON.stringify(expenseCategories));
     localStorage.setItem(`${STORAGE_KEY}_role_permissions`, JSON.stringify(rolePermissions));
   }, [users, branches, products, branchStocks, stockIns, stockOuts, sales, stockMovements, transfers, openingBalances, expenses, expenseCategories, rolePermissions]);
+
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+
+  // Cloud Synchronization: Initial load from Supabase
+  useEffect(() => {
+    let isMounted = true;
+    setIsCloudSyncing(true);
+    fetchAllCollections().then((data) => {
+      if (!isMounted || !data) {
+        setIsCloudSyncing(false);
+        return;
+      }
+      if (data.branches && data.branches.length > 0) setBranches(data.branches);
+      if (data.users && data.users.length > 0) setUsers(data.users);
+      if (data.products) setProducts(data.products);
+      if (data.branchStocks) setBranchStocks(data.branchStocks);
+      if (data.stockIns) setStockIns(data.stockIns);
+      if (data.stockOuts) setStockOuts(data.stockOuts);
+      if (data.sales) setSales(data.sales);
+      if (data.transfers) setTransfers(data.transfers);
+      if (data.expenses) setExpenses(data.expenses);
+      if (data.expenseCategories && data.expenseCategories.length > 0) setExpenseCategories(data.expenseCategories);
+      if (data.openingBalances) setOpeningBalances(data.openingBalances);
+      if (data.movements) setStockMovements(data.movements);
+      setIsCloudSyncing(false);
+    }).catch(() => {
+      if (isMounted) setIsCloudSyncing(false);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // Role booleans
   const isSuperAdmin = currentUser.role === 'super_admin';
@@ -2036,6 +2087,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         login,
         logout,
         getNextUserId,
+        isCloudSyncing,
       }}
     >
       {children}

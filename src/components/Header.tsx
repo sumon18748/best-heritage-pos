@@ -40,6 +40,7 @@ export const Header: React.FC = () => {
     setActiveTab,
     logout,
     updateUser,
+    isCloudSyncing,
   } = useApp();
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -492,6 +493,12 @@ export const Header: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Cloud Database Status Badge */}
+          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-950/60 border border-emerald-500/30 rounded-full text-emerald-400 text-[11px] font-semibold">
+            <span className={`w-1.5 h-1.5 rounded-full ${isCloudSyncing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
+            <span>{isCloudSyncing ? 'Syncing...' : 'Live Cloud DB'}</span>
           </div>
 
           {/* User Profile & Switcher Dropdown */}
