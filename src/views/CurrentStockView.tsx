@@ -580,15 +580,15 @@ export const CurrentStockView: React.FC = () => {
                   {canViewProfit ? (
                     <>
                       <td className="py-3 px-4 text-right text-slate-700 font-medium">
-                        {formatCurrencyBDT(row.purchasePrice)}
+                        {row.purchasePrice > 0 ? formatCurrencyBDT(row.purchasePrice) : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="py-3 px-4 text-right font-bold text-slate-900">
-                        {formatCurrencyBDT(row.stockValue)}
+                        {row.stockValue > 0 ? formatCurrencyBDT(row.stockValue) : <span className="text-slate-300">—</span>}
                       </td>
                     </>
                   ) : (
                     <td className="py-3 px-4 text-right font-semibold text-emerald-700">
-                      {formatCurrencyBDT(row.sellingPrice)}
+                      {row.sellingPrice > 0 ? formatCurrencyBDT(row.sellingPrice) : <span className="text-slate-300">—</span>}
                     </td>
                   )}
                   <td className="py-3 px-4 text-center">

@@ -557,7 +557,9 @@ export const SalesEntryView: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 space-x-2">
-                      <span className="font-mono font-bold text-slate-900">{formatCurrencyBDT(prod.sellingPrice)}</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {prod.sellingPrice > 0 ? formatCurrencyBDT(prod.sellingPrice) : '—'}
+                      </span>
                       <span className={`px-1 py-0.2 rounded font-semibold ${!isOutOfStock ? 'text-emerald-700 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
                         {isPerfume ? (openMl > 0 ? `${openMl}ml open` : `${stock} btl`) : `${stock} left`}
                       </span>
@@ -1094,7 +1096,7 @@ export const SalesEntryView: React.FC = () => {
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-xs font-extrabold text-slate-900 font-mono">
-                              {formatCurrencyBDT(prod.sellingPrice)}
+                              {prod.sellingPrice > 0 ? formatCurrencyBDT(prod.sellingPrice) : '—'}
                             </p>
                           </div>
                         </div>

@@ -17,6 +17,7 @@ import {
   FileText,
   Download,
   ShieldAlert,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrencyBDT } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
@@ -28,6 +29,7 @@ export const SalesHistoryView: React.FC = () => {
     sales,
     branches,
     cancelSale,
+    deleteSale,
     currentUser,
     selectedBranchId,
     setActiveTab,
@@ -35,6 +37,8 @@ export const SalesHistoryView: React.FC = () => {
     canVoidSale,
     canDelete,
   } = useApp();
+
+  const isSuperAdmin = currentUser.role === 'super_admin';
 
   const [searchTerm, setSearchTerm] = useState('');
   const isBranchLocked = currentUser.role === 'manager' && !!currentUser.branchId;
@@ -49,6 +53,10 @@ export const SalesHistoryView: React.FC = () => {
   const [saleToCancel, setSaleToCancel] = useState<SaleTransaction | null>(null);
   const [cancelReason, setCancelReason] = useState('Customer returned goods in original condition');
   const [cancelFeedback, setCancelFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Delete modal (Super Admin only)
+  const [saleToDelete, setSaleToDelete] = useState<SaleTransaction | null>(null);
+  const [deleteFeedback, setDeleteFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   const effectiveBranchId = isBranchLocked ? currentUser.branchId! : filterBranchId;
 
@@ -185,6 +193,18 @@ export const SalesHistoryView: React.FC = () => {
       setTimeout(() => {
         setSaleToCancel(null);
         setCancelFeedback(null);
+      }, 1500);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!saleToDelete) return;
+    const res = deleteSale(saleToDelete.id);
+    setDeleteFeedback(res);
+    if (res.success) {
+      setTimeout(() => {
+        setSaleToDelete(null);
+        setDeleteFeedback(null);
       }, 1500);
     }
   };
@@ -460,6 +480,20 @@ export const SalesHistoryView: React.FC = () => {
                           <RotateCcw className="w-4 h-4" />
                         </button>
                       )}
+
+                      {/* Permanent Delete — Super Admin Only */}
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => {
+                            setSaleToDelete(sale);
+                            setDeleteFeedback(null);
+                          }}
+                          title="Permanently Delete Invoice (Super Admin Only)"
+                          className="p-1.5 text-slate-300 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -544,6 +578,82 @@ export const SalesHistoryView: React.FC = () => {
                     Confirm Void & Restore Stock
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Modal — Super Admin Only */}
+      {saleToDelete && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl relative border-2 border-red-200">
+            <button
+              onClick={() => setSaleToDelete(null)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-base font-bold text-red-700 flex items-center space-x-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              <span>Permanently Delete Invoice</span>
+            </h3>
+
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium">
+              ⚠️ এই ইনভয়েসটি সম্পূর্ণভাবে ডাটাবেজ থেকে মুছে ফেলা হবে। এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না!
+            </div>
+
+            <div className="mt-3 text-xs text-slate-600 space-y-1">
+              <div className="flex justify-between">
+                <span className="font-semibold">Invoice No:</span>
+                <span className="font-mono font-bold text-slate-900">{saleToDelete.invoiceNo}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Customer:</span>
+                <span>{saleToDelete.customerName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Amount:</span>
+                <span className="font-bold text-red-600">{formatCurrencyBDT(saleToDelete.totalSalesAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Branch:</span>
+                <span>{saleToDelete.branchName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Status:</span>
+                <span className={saleToDelete.status === 'completed' ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
+                  {saleToDelete.status === 'completed' ? 'Completed (Stock will be restored)' : 'Already Cancelled'}
+                </span>
+              </div>
+            </div>
+
+            {deleteFeedback && (
+              <div
+                className={`mt-3 p-3 rounded-lg text-xs font-semibold ${
+                  deleteFeedback.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {deleteFeedback.message}
+              </div>
+            )}
+
+            {!deleteFeedback && (
+              <div className="flex justify-end space-x-2 pt-4 mt-2 border-t border-slate-100">
+                <button
+                  onClick={() => setSaleToDelete(null)}
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                >
+                  বাতিল করুন
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-3.5 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center space-x-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>হ্যাঁ, চিরতরে ডিলিট করুন</span>
+                </button>
               </div>
             )}
           </div>

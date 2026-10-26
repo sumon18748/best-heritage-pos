@@ -605,18 +605,24 @@ export const ProductsView: React.FC = () => {
 
                     {canViewProfit && (
                       <td className="py-3 px-4 text-right font-medium text-slate-600 font-mono">
-                        {formatCurrencyBDT(product.purchasePrice)}
+                        {product.purchasePrice > 0 ? formatCurrencyBDT(product.purchasePrice) : <span className="text-slate-300 font-normal">—</span>}
                       </td>
                     )}
 
                     <td className="py-3 px-4 text-right font-bold text-slate-900 font-mono">
-                      {formatCurrencyBDT(product.sellingPrice)}
+                      {product.sellingPrice > 0 ? formatCurrencyBDT(product.sellingPrice) : <span className="text-slate-300 font-normal">—</span>}
                     </td>
 
                     {canViewProfit && (
                       <td className="py-3 px-4 text-right">
-                        <span className="text-emerald-700 font-bold font-mono">+{formatCurrencyBDT(marginVal)}</span>
-                        <span className="text-[10px] text-slate-400 block font-medium">({marginPercent}%)</span>
+                        {marginVal > 0 ? (
+                          <>
+                            <span className="text-emerald-700 font-bold font-mono">+{formatCurrencyBDT(marginVal)}</span>
+                            <span className="text-[10px] text-slate-400 block font-medium">({marginPercent}%)</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-300 font-normal">—</span>
+                        )}
                       </td>
                     )}
 

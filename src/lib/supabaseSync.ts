@@ -474,6 +474,17 @@ export async function syncSaleUpsert(s: SaleTransaction) {
   }
 }
 
+export async function syncSaleDelete(id: string) {
+  try {
+    const { error } = await supabase.from('sales').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase syncSaleDelete error:', error);
+    }
+  } catch (err) {
+    console.warn('Sync sale delete failed:', err);
+  }
+}
+
 export async function syncTransferUpsert(t: BranchTransfer) {
   try {
     const { error } = await supabase.from('branch_transfers').upsert({

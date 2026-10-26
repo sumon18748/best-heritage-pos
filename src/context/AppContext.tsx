@@ -55,6 +55,7 @@ import {
   syncStockInUpsert,
   syncStockOutUpsert,
   syncSaleUpsert,
+  syncSaleDelete,
   syncTransferUpsert,
   syncExpenseUpsert,
   syncExpenseDelete,
@@ -163,6 +164,7 @@ interface AppContextType {
   }) => { success: boolean; message: string; sale?: SaleTransaction };
 
   cancelSale: (saleId: string, reason: string) => { success: boolean; message: string };
+  deleteSale: (saleId: string) => { success: boolean; message: string };
 
   createTransfer: (data: {
     date: string;
@@ -1812,6 +1814,119 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Sale ${sale.invoiceNo} cancelled. Stock restored to ${sale.branchName}.` };
   };
 
+  // Permanently Delete Sale Invoice (Super Admin Only)
+  const deleteSale = (saleId: string) => {
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার সেল ইনভয়েস সরাসরি ডিলিট করতে পারবেন।' };
+    }
+
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) return { success: false, message: 'Sale invoice not found.' };
+
+    const movementsToAdd: StockMovement[] = [];
+    const changedStocks: BranchProductStock[] = [];
+
+    // If sale was completed, restore stock so inventory numbers stay 100% accurate
+    if (sale.status === 'completed') {
+      for (const item of sale.items) {
+        const current = branchStocks.find((s) => s.branchId === sale.branchId && s.productId === item.productId);
+        const prod = products.find((p) => p.id === item.productId);
+
+        if (current) {
+          if (item.isDecant && item.decantMlAmount) {
+            const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
+            const mlRestored = item.decantMlAmount * item.quantity;
+
+            const restoreRes = calculateDecantCancelRestore({
+              currentStock: current.currentStock,
+              currentOpenBottleMl: current.openBottleMlRemaining,
+              bottleCapacityMl: capacity,
+              wastageMl: 0,
+              mlRestored,
+            });
+
+            const updatedEntry: BranchProductStock = {
+              ...current,
+              currentStock: restoreRes.newCurrentStock,
+              openBottleMlRemaining: restoreRes.newOpenBottleMl,
+              quantitySold: Math.max(0, current.quantitySold - restoreRes.bottlesIncremented),
+              lastUpdated: new Date().toLocaleString(),
+            };
+            changedStocks.push(updatedEntry);
+
+            movementsToAdd.push({
+              id: `mov_del_${Date.now()}_${item.productId}`,
+              timestamp: new Date().toLocaleString(),
+              date: new Date().toISOString().split('T')[0],
+              branchId: sale.branchId,
+              branchName: sale.branchName,
+              productId: item.productId,
+              productName: item.productName,
+              sku: item.sku,
+              type: 'sale_cancellation',
+              quantityChange: restoreRes.bottlesIncremented,
+              balanceAfter: restoreRes.newCurrentStock,
+              referenceNo: sale.invoiceNo,
+              notes: `Super Admin Invoice Deletion: Restored ${mlRestored}ml (${restoreRes.bottlesIncremented} bottle restored).`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+            });
+          } else {
+            const restoredCurrentStock = current.currentStock + item.quantity;
+            const updatedEntry: BranchProductStock = {
+              ...current,
+              quantitySold: Math.max(0, current.quantitySold - item.quantity),
+              currentStock: restoredCurrentStock,
+              lastUpdated: new Date().toLocaleString(),
+            };
+            changedStocks.push(updatedEntry);
+
+            movementsToAdd.push({
+              id: `mov_del_${Date.now()}_${item.productId}`,
+              timestamp: new Date().toLocaleString(),
+              date: new Date().toISOString().split('T')[0],
+              branchId: sale.branchId,
+              branchName: sale.branchName,
+              productId: item.productId,
+              productName: item.productName,
+              sku: item.sku,
+              type: 'sale_cancellation',
+              quantityChange: item.quantity,
+              balanceAfter: restoredCurrentStock,
+              referenceNo: sale.invoiceNo,
+              notes: `Super Admin Invoice Deletion: Stock restored (+${item.quantity} units).`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+            });
+          }
+        }
+      }
+    }
+
+    if (changedStocks.length > 0) {
+      setBranchStocks((prev) =>
+        prev.map((s) => {
+          const matching = changedStocks.find((cs) => cs.branchId === s.branchId && cs.productId === s.productId);
+          return matching ? matching : s;
+        })
+      );
+      changedStocks.forEach((st) => syncBranchStockUpsert(st));
+    }
+
+    if (movementsToAdd.length > 0) {
+      setStockMovements((prev) => [...movementsToAdd, ...prev]);
+      movementsToAdd.forEach((m) => syncMovementInsert(m));
+    }
+
+    // Permanently remove sale from state
+    setSales((prev) => prev.filter((s) => s.id !== saleId));
+
+    // Permanently remove from Supabase online database
+    syncSaleDelete(saleId);
+
+    return { success: true, message: `Invoice "${sale.invoiceNo}" permanently deleted by Super Admin.` };
+  };
+
 
   // Branch Transfer Workflow
   const createTransfer = (data: {
@@ -2387,6 +2502,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createStockOut,
         createSale,
         cancelSale,
+        deleteSale,
         createTransfer,
         receiveTransfer,
         cancelTransfer,
