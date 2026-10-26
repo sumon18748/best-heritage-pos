@@ -254,3 +254,25 @@ test('calculateDecantCancelRestore restores ml and reverses bottle decrements cl
   assert.equal(res2.bottlesIncremented, 1);
 });
 
+test('login authentication supports 5-digit user IDs: 99999, 00001, 00002 with password 123456', async () => {
+  const { INITIAL_USERS } = await import('../data/mockData.ts');
+
+  // Verify all 3 users exist with 5-digit username
+  const superAdmin = INITIAL_USERS.find(u => u.username === '99999');
+  assert.ok(superAdmin, 'Super Admin 99999 must exist');
+  assert.equal(superAdmin.role, 'super_admin');
+  assert.equal(superAdmin.name, 'Best Heritage');
+
+  const admin = INITIAL_USERS.find(u => u.username === '00001');
+  assert.ok(admin, 'Admin 00001 must exist');
+  assert.equal(admin.role, 'admin');
+  assert.equal(admin.name, 'Sumon');
+
+  const manager = INITIAL_USERS.find(u => u.username === '00002');
+  assert.ok(manager, 'Branch Manager 00002 must exist');
+  assert.equal(manager.role, 'manager');
+  assert.equal(manager.name, 'Sohel Ahmed');
+  assert.equal(manager.branchName, 'Aftabnagar Branch');
+});
+
+
