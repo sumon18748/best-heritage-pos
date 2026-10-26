@@ -867,7 +867,7 @@ export const ProductsView: React.FC = () => {
                       type="number"
                       step="0.01"
                       required
-                      placeholder="1850.00"
+                      placeholder="00"
                       value={formPurchasePrice}
                       onChange={(e) => setFormPurchasePrice(e.target.value)}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold"
@@ -879,7 +879,7 @@ export const ProductsView: React.FC = () => {
                       type="number"
                       step="0.01"
                       required
-                      placeholder="3200.00"
+                      placeholder="00"
                       value={formSellingPrice}
                       onChange={(e) => setFormSellingPrice(e.target.value)}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold"

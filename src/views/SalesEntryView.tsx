@@ -749,8 +749,8 @@ export const SalesEntryView: React.FC = () => {
                           type="number"
                           step="0.01"
                           min="0"
-                          placeholder={row.isDecant ? 'Enter Tk' : '0.00'}
-                          value={row.sellingPrice}
+                          placeholder="00"
+                          value={row.sellingPrice === 0 ? '' : row.sellingPrice}
                           onChange={(e) => handlePriceChange(idx, e.target.value)}
                           className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-right font-bold focus:outline-none"
                         />
@@ -859,7 +859,7 @@ export const SalesEntryView: React.FC = () => {
                     min="0"
                     max={discountType === 'percentage' ? 100 : grandTotals.subtotal}
                     step={discountType === 'percentage' ? '0.1' : '1'}
-                    placeholder={discountType === 'percentage' ? 'e.g. 5% or 10%' : 'e.g. 50 or 100 Tk'}
+                    placeholder="00"
                     value={discountValue}
                     onChange={(e) => {
                       const val = e.target.value === '' ? '' : parseFloat(e.target.value);

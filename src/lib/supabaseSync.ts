@@ -339,8 +339,8 @@ export async function syncProductUpsert(p: Product) {
       package_size: p.packageSize || null,
       package_unit: p.packageUnit || null,
       bottle_capacity_ml: p.bottleCapacityMl || null,
-      is_decant_allowed: p.decantConfig?.isDecantAllowed ?? false,
-      decant_variants: p.decantConfig?.decantVariants || null,
+      is_decant_allowed: p.decantConfig?.isDecantable ?? false,
+      decant_variants: p.decantConfig?.variants || null,
       decant_config: p.decantConfig || null,
     }, { onConflict: 'id' });
 

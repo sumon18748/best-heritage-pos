@@ -614,7 +614,7 @@ export const CashBankExpensesView: React.FC = () => {
                     step="0.01"
                     min="1"
                     required
-                    placeholder="0.00"
+                    placeholder="00"
                     value={expenseForm.amount}
                     onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none font-bold"
@@ -739,6 +739,7 @@ export const CashBankExpensesView: React.FC = () => {
                     step="0.01"
                     min="1"
                     required
+                    placeholder="00"
                     value={editForm.amount}
                     onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono font-bold"

@@ -708,7 +708,8 @@ export const StockInView: React.FC = () => {
                             type="number"
                             step="0.01"
                             min="0"
-                            value={row.purchasePrice}
+                            placeholder="00"
+                            value={row.purchasePrice === 0 ? '' : row.purchasePrice}
                             onChange={(e) => handlePriceChange(idx, e.target.value)}
                             className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-right font-bold focus:outline-none"
                           />
