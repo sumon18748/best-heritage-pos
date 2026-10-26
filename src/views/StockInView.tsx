@@ -29,6 +29,7 @@ interface ItemRow {
   productId: string;
   quantity: number;
   purchasePrice: number;
+  sellingPrice: number;
 }
 
 export const StockInView: React.FC = () => {
@@ -84,6 +85,7 @@ export const StockInView: React.FC = () => {
       productId: '',
       quantity: 10,
       purchasePrice: 0,
+      sellingPrice: 0,
     },
   ]);
 
@@ -100,6 +102,7 @@ export const StockInView: React.FC = () => {
         productId: catProds[0]?.id || '',
         quantity: 10,
         purchasePrice: catProds[0]?.purchasePrice || 0,
+        sellingPrice: catProds[0]?.sellingPrice || 0,
       },
     ]);
   };
@@ -111,6 +114,7 @@ export const StockInView: React.FC = () => {
       ...updated[index],
       productId: newProductId,
       purchasePrice: prod ? prod.purchasePrice : 0,
+      sellingPrice: prod ? prod.sellingPrice : 0,
     };
     setRows(updated);
   };
@@ -129,6 +133,13 @@ export const StockInView: React.FC = () => {
     setRows(updated);
   };
 
+  const handleSellingPriceChange = (index: number, priceStr: string) => {
+    const price = Math.max(0, parseFloat(priceStr) || 0);
+    const updated = [...rows];
+    updated[index].sellingPrice = price;
+    setRows(updated);
+  };
+
   const addRow = () => {
     setRows((prev) => [
       ...prev,
@@ -136,6 +147,7 @@ export const StockInView: React.FC = () => {
         productId: categoryProducts[0]?.id || '',
         quantity: 10,
         purchasePrice: categoryProducts[0]?.purchasePrice || 0,
+        sellingPrice: categoryProducts[0]?.sellingPrice || 0,
       },
     ]);
   };
@@ -161,6 +173,7 @@ export const StockInView: React.FC = () => {
         productId: catProds[0]?.id || '',
         quantity: 10,
         purchasePrice: catProds[0]?.purchasePrice || 0,
+        sellingPrice: catProds[0]?.sellingPrice || 0,
       },
     ]);
     setFormError('');
@@ -229,11 +242,15 @@ export const StockInView: React.FC = () => {
     setEditSupplierName(tx.supplierName || '');
     setEditSupplierInvoiceNo(tx.supplierInvoiceNo || '');
     setEditRemarks(tx.remarks || '');
-    setEditRows(tx.items.map((it) => ({
-      productId: it.productId,
-      quantity: it.quantity,
-      purchasePrice: it.purchasePrice,
-    })));
+    setEditRows(tx.items.map((it) => {
+      const prod = products.find((p) => p.id === it.productId);
+      return {
+        productId: it.productId,
+        quantity: it.quantity,
+        purchasePrice: it.purchasePrice,
+        sellingPrice: it.sellingPrice !== undefined ? it.sellingPrice : (prod?.sellingPrice || 0),
+      };
+    }));
     setEditNotice(null);
   };
 
@@ -526,7 +543,9 @@ export const StockInView: React.FC = () => {
                       {tx.items.map((it) => (
                         <div key={it.id} className="text-[11px] flex items-center space-x-2">
                           <span className="font-semibold text-slate-800">{it.productName}</span>
-                          <span className="text-slate-400 font-mono">({it.quantity} × {formatCurrencyBDT(it.purchasePrice)})</span>
+                          <span className="text-slate-400 font-mono">
+                            ({it.quantity} × {formatCurrencyBDT(it.purchasePrice)}{it.sellingPrice ? ` | সেল: ${formatCurrencyBDT(it.sellingPrice)}` : ''})
+                          </span>
                           {it.totalVolumeWeight && (
                             <span className="text-[10px] bg-indigo-50 text-indigo-700 font-semibold px-1 rounded border border-indigo-200">
                               ⚖️ {it.totalVolumeWeight}
@@ -779,8 +798,8 @@ export const StockInView: React.FC = () => {
                           })()}
                         </div>
 
-                        <div className="w-24">
-                          <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">Quantity</label>
+                        <div className="w-20">
+                          <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">Quantity</label>
                           <input
                             type="number"
                             min="1"
@@ -791,7 +810,7 @@ export const StockInView: React.FC = () => {
                         </div>
 
                         <div className="w-28">
-                          <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">Cost/Unit (Tk)</label>
+                          <label className="text-[10px] text-slate-600 font-semibold block mb-0.5">Purchase Cost (Tk) *</label>
                           <input
                             type="number"
                             step="0.01"
@@ -799,12 +818,25 @@ export const StockInView: React.FC = () => {
                             placeholder="00"
                             value={row.purchasePrice === 0 ? '' : row.purchasePrice}
                             onChange={(e) => handlePriceChange(idx, e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-right font-bold focus:outline-none"
+                            className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg text-right font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         </div>
 
-                        <div className="w-28 text-right">
-                          <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">Total Cost</label>
+                        <div className="w-28">
+                          <label className="text-[10px] text-emerald-700 font-bold block mb-0.5">Selling Price (Tk) *</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="00"
+                            value={row.sellingPrice === 0 ? '' : row.sellingPrice}
+                            onChange={(e) => handleSellingPriceChange(idx, e.target.value)}
+                            className="w-full px-2 py-1.5 text-xs border border-emerald-300 bg-emerald-50/40 rounded-lg text-right font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-900"
+                          />
+                        </div>
+
+                        <div className="w-24 text-right">
+                          <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">Total Cost</label>
                           <div className="text-xs font-bold text-slate-900 py-1.5 font-mono">
                             {formatCurrencyBDT(rowCost)}
                           </div>
@@ -1019,9 +1051,10 @@ export const StockInView: React.FC = () => {
                     <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-[11px]">
                       <tr>
                         <th className="py-2 px-3">Product</th>
-                        <th className="py-2 px-3 text-center w-24">Inward Qty</th>
-                        <th className="py-2 px-3 text-right w-28">Cost/Unit (Tk)</th>
-                        <th className="py-2 px-3 text-right w-28">Total Cost</th>
+                        <th className="py-2 px-3 text-center w-20">Inward Qty</th>
+                        <th className="py-2 px-3 text-right w-24">Purchase Cost (Tk)</th>
+                        <th className="py-2 px-3 text-right w-24">Selling Price (Tk)</th>
+                        <th className="py-2 px-3 text-right w-24">Total Cost</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1061,6 +1094,22 @@ export const StockInView: React.FC = () => {
                                   );
                                 }}
                                 className="w-full text-right p-1 rounded border border-slate-200 text-xs font-bold focus:outline-none"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="00"
+                                value={row.sellingPrice === 0 ? '' : row.sellingPrice}
+                                onChange={(e) => {
+                                  const newSelling = Math.max(0, parseFloat(e.target.value) || 0);
+                                  setEditRows((prev) =>
+                                    prev.map((r, i) => (i === idx ? { ...r, sellingPrice: newSelling } : r))
+                                  );
+                                }}
+                                className="w-full text-right p-1 rounded border border-emerald-300 bg-emerald-50/30 text-xs font-bold focus:outline-none text-emerald-900"
                               />
                             </td>
                             <td className="py-2 px-3 text-right font-bold text-slate-900 font-mono">

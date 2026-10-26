@@ -107,6 +107,7 @@ export interface StockInItem {
   categoryName: MainCategoryName;
   quantity: number;
   purchasePrice: number;
+  sellingPrice?: number;
   totalCost: number;
   packageSize?: number;
   packageUnit?: string;

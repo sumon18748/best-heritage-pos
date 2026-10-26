@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   User,
@@ -139,14 +139,14 @@ interface AppContextType {
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
-    items: { productId: string; quantity: number; purchasePrice: number }[];
+    items: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number }[];
   }) => { success: boolean; message: string; transaction?: StockInTransaction };
   updateStockIn: (stockInId: string, data: {
     date?: string;
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
-    items?: { productId: string; quantity: number; purchasePrice: number }[];
+    items?: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number }[];
   }) => { success: boolean; message: string };
   deleteStockIn: (stockInId: string) => { success: boolean; message: string };
 
@@ -1296,7 +1296,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
-    items: { productId: string; quantity: number; purchasePrice: number }[];
+    items: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number }[];
   }) => {
     if (currentUser.role === 'manager' && currentUser.branchId && data.branchId !== currentUser.branchId) {
       return { success: false, message: 'Security Violation: You cannot record Stock In for another branch.' };
@@ -1328,6 +1328,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         categoryName: prod?.categoryName || 'Cosmetic Products',
         quantity: item.quantity,
         purchasePrice: item.purchasePrice,
+        sellingPrice: item.sellingPrice,
         totalCost: cost,
         packageSize: pkgSize,
         packageUnit: pkgUnit,
@@ -1461,6 +1462,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStockIns((prev) => [newTx, ...prev]);
     setStockMovements((prev) => [...movementsToAdd, ...prev]);
 
+    // Also update product catalog sellingPrice and purchasePrice from Stock In
+    setProducts((prev) =>
+      prev.map((p) => {
+        const inItem = data.items.find((it) => it.productId === p.id);
+        if (!inItem) return p;
+        const newSellingPrice = inItem.sellingPrice !== undefined && inItem.sellingPrice > 0 ? inItem.sellingPrice : p.sellingPrice;
+        const newPurchasePrice = inItem.purchasePrice > 0 ? inItem.purchasePrice : p.purchasePrice;
+        if (newSellingPrice === p.sellingPrice && newPurchasePrice === p.purchasePrice) return p;
+        const updated = {
+          ...p,
+          sellingPrice: newSellingPrice,
+          purchasePrice: newPurchasePrice,
+          updatedAt: new Date().toISOString().split('T')[0],
+        };
+        syncProductUpsert(updated);
+        return updated;
+      })
+    );
+
     // Push to Supabase Cloud immediately
     syncStockInUpsert(newTx);
     changedStocks.forEach((st) => syncBranchStockUpsert(st));
@@ -1475,7 +1495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
-    items?: { productId: string; quantity: number; purchasePrice: number }[];
+    items?: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number }[];
   }) => {
     if (currentUser.role !== 'super_admin') {
       return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-ইন এডিট করতে পারবেন।' };
@@ -1554,9 +1574,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           categoryName: prod?.categoryName || 'Cosmetic Products',
           quantity: it.quantity,
           purchasePrice: it.purchasePrice,
+          sellingPrice: it.sellingPrice,
           totalCost: itemCost,
         };
       });
+
+      // Also update master products with updated selling/purchase prices
+      setProducts((prev) =>
+        prev.map((p) => {
+          const inItem = data.items?.find((it) => it.productId === p.id);
+          if (!inItem) return p;
+          const newSellingPrice = inItem.sellingPrice !== undefined && inItem.sellingPrice > 0 ? inItem.sellingPrice : p.sellingPrice;
+          const newPurchasePrice = inItem.purchasePrice > 0 ? inItem.purchasePrice : p.purchasePrice;
+          if (newSellingPrice === p.sellingPrice && newPurchasePrice === p.purchasePrice) return p;
+          const updated = {
+            ...p,
+            sellingPrice: newSellingPrice,
+            purchasePrice: newPurchasePrice,
+            updatedAt: new Date().toISOString().split('T')[0],
+          };
+          syncProductUpsert(updated);
+          return updated;
+        })
+      );
     }
 
     const updatedTx: StockInTransaction = {
