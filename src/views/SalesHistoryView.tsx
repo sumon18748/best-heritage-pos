@@ -24,6 +24,7 @@ import { formatCurrencyBDT } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { InvoiceModal } from '../components/InvoiceModal';
+import { sortByNewestFirst, getBangladeshTodayDateString } from '../utils/dateUtils';
 
 export const SalesHistoryView: React.FC = () => {
   const {
@@ -74,7 +75,7 @@ export const SalesHistoryView: React.FC = () => {
 
   const effectiveBranchId = isBranchLocked ? currentUser.branchId! : filterBranchId;
 
-  const filteredSales = sales.filter((s) => {
+  const rawFilteredSales = sales.filter((s) => {
     const matchesBranch = effectiveBranchId === 'all' || s.branchId === effectiveBranchId;
     const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
     const matchesCategory =
@@ -88,6 +89,8 @@ export const SalesHistoryView: React.FC = () => {
 
     return matchesBranch && matchesStatus && matchesCategory && matchesSearch;
   });
+
+  const filteredSales = sortByNewestFirst(rawFilteredSales);
 
   const totalSalesAmount = filteredSales
     .filter((s) => s.status === 'completed')
@@ -163,7 +166,7 @@ export const SalesHistoryView: React.FC = () => {
       headers: exportHeaders,
       dataRows: exportRows,
       summaryStats,
-      fileName: `BestHeritage_SalesHistory_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      fileName: `BestHeritage_SalesHistory_${getBangladeshTodayDateString()}.xlsx`,
     });
   };
 
@@ -176,7 +179,7 @@ export const SalesHistoryView: React.FC = () => {
       headers: exportHeaders,
       dataRows: exportRows,
       summaryStats,
-      fileName: `BestHeritage_SalesHistory_${new Date().toISOString().slice(0, 10)}.pdf`,
+      fileName: `BestHeritage_SalesHistory_${getBangladeshTodayDateString()}.pdf`,
     });
   };
 
@@ -193,7 +196,7 @@ export const SalesHistoryView: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `BestHeritage_SalesHistory_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `BestHeritage_SalesHistory_${getBangladeshTodayDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

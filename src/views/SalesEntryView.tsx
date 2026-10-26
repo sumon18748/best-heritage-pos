@@ -26,6 +26,7 @@ import {
   calculateDecantItemCost,
 } from '../utils/stockCalculations';
 import { InvoiceModal } from '../components/InvoiceModal';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 interface SalesRow {
   productId: string;
@@ -48,7 +49,7 @@ export const SalesEntryView: React.FC = () => {
     selectedCategoryName,
   } = useApp();
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getBangladeshTodayDateString();
   const [salesDate, setSalesDate] = useState(todayStr);
   const [branchId, setBranchId] = useState(
     currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''

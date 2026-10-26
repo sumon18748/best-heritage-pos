@@ -22,6 +22,7 @@ import { ExpenseCategory, ExpensePaymentSource, OperatingExpense } from '../type
 import { formatCurrencyBDT, calculateCashBankBalances } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 export const CashBankExpensesView: React.FC = () => {
   const {
@@ -63,7 +64,7 @@ export const CashBankExpensesView: React.FC = () => {
 
   // Expense Form
   const [expenseForm, setExpenseForm] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getBangladeshTodayDateString(),
     branchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
     category: 'Packaging & Bags' as ExpenseCategory,
     amount: '',
@@ -110,7 +111,7 @@ export const CashBankExpensesView: React.FC = () => {
       : [targetBranchId];
 
     // Relevant opening balances (today's or latest)
-    const today = new Date().toISOString().split('T')[0];
+    const today = getBangladeshTodayDateString();
     const obForToday = openingBalances.filter(
       (ob) => relevantBranches.includes(ob.branchId) && ob.date === today
     );
@@ -187,7 +188,7 @@ export const CashBankExpensesView: React.FC = () => {
       setNotification({ type: 'success', message: res.message });
       setShowExpenseModal(false);
       setExpenseForm({
-        date: new Date().toISOString().split('T')[0],
+        date: getBangladeshTodayDateString(),
         branchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
         category: 'Packaging & Bags',
         amount: '',

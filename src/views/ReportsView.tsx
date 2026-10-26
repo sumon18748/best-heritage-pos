@@ -21,6 +21,7 @@ import {
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName } from '../types';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 type ReportType =
   | 'current_stock'
@@ -724,7 +725,7 @@ export const ReportsView: React.FC = () => {
       headers: reportHeaders,
       dataRows: reportRows,
       summaryStats: summaryStats,
-      fileName: `BestHeritage_${activeReport}_${new Date().toISOString().slice(0, 10)}`,
+      fileName: `BestHeritage_${activeReport}_${getBangladeshTodayDateString()}`,
     });
   };
 
@@ -740,7 +741,7 @@ export const ReportsView: React.FC = () => {
       headers: reportHeaders,
       dataRows: reportRows,
       summaryStats: summaryStats,
-      fileName: `BestHeritage_${activeReport}_${new Date().toISOString().slice(0, 10)}.pdf`,
+      fileName: `BestHeritage_${activeReport}_${getBangladeshTodayDateString()}.pdf`,
     });
   };
 
@@ -767,7 +768,7 @@ export const ReportsView: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `BestHeritage_Report_${activeReport}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `BestHeritage_Report_${activeReport}_${getBangladeshTodayDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

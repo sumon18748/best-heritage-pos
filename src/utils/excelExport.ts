@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { getBangladeshTodayDateString } from './dateUtils';
 
 export interface ExcelExportOptions {
   reportTitle: string;
@@ -82,7 +83,7 @@ export function exportReportToExcel(options: ExcelExportOptions): void {
   // 4. Download as .xlsx
   const safeFileName =
     fileName ||
-    `BestHeritage_${reportTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    `BestHeritage_${reportTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${getBangladeshTodayDateString()}.xlsx`;
 
   XLSX.writeFile(workbook, safeFileName, { bookType: 'xlsx', type: 'binary' });
 }

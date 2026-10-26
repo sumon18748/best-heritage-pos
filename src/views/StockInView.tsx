@@ -24,6 +24,7 @@ import { formatCurrencyBDT, calculateStockInCost } from '../utils/stockCalculati
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName, StockInTransaction } from '../types';
+import { getBangladeshTodayDateString, sortByNewestFirst } from '../utils/dateUtils';
 
 interface ItemRow {
   productId: string;
@@ -65,7 +66,7 @@ export const StockInView: React.FC = () => {
   const [editNotice, setEditNotice] = useState<{ success: boolean; message: string } | null>(null);
 
   // Form state
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getBangladeshTodayDateString();
   const [formDate, setFormDate] = useState(todayStr);
   const [formBranchId, setFormBranchId] = useState(
     currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''
@@ -278,7 +279,7 @@ export const StockInView: React.FC = () => {
 
   // Filter history
   const filteredStockIns = useMemo(() => {
-    return stockIns.filter((stk) => {
+    const matches = stockIns.filter((stk) => {
       const matchesBranch = effectiveBranchId === 'all' || stk.branchId === effectiveBranchId;
       const matchesCategory =
         activeCategoryTab === 'all' ||
@@ -292,6 +293,8 @@ export const StockInView: React.FC = () => {
 
       return matchesBranch && matchesCategory && matchesSearch;
     });
+
+    return sortByNewestFirst(matches);
   }, [stockIns, effectiveBranchId, activeCategoryTab, searchTerm]);
 
   const activeBranchLabel = isBranchRestricted

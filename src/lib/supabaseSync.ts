@@ -15,6 +15,7 @@ import {
   StockMovement,
   MainCategoryName,
 } from '../types';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 // ====================================================================
 // Fetch All Collections from Supabase
@@ -42,14 +43,14 @@ export async function fetchAllCollections() {
       supabase.from('categories').select('*'),
       supabase.from('products').select('*'),
       supabase.from('branch_stocks').select('*'),
-      supabase.from('stock_ins').select('*'),
-      supabase.from('stock_outs').select('*'),
-      supabase.from('sales').select('*'),
-      supabase.from('branch_transfers').select('*'),
-      supabase.from('operating_expenses').select('*'),
+      supabase.from('stock_ins').select('*').order('created_at', { ascending: false }),
+      supabase.from('stock_outs').select('*').order('created_at', { ascending: false }),
+      supabase.from('sales').select('*').order('created_at', { ascending: false }),
+      supabase.from('branch_transfers').select('*').order('created_at', { ascending: false }),
+      supabase.from('operating_expenses').select('*').order('created_at', { ascending: false }),
       supabase.from('expense_categories').select('*'),
       supabase.from('branch_opening_balances').select('*'),
-      supabase.from('stock_movements').select('*'),
+      supabase.from('stock_movements').select('*').order('created_at', { ascending: false }),
     ]);
 
     const branches: Branch[] | null = branchesRes.data
@@ -266,7 +267,7 @@ export async function fetchAllCollections() {
           id: ob.id,
           branchId: ob.branch_id,
           branchName: ob.branch_name || '',
-          date: ob.set_date || new Date().toISOString().split('T')[0],
+          date: ob.set_date || getBangladeshTodayDateString(),
           openingCashAmount: Number(ob.cash_in_hand) || 0,
           openingBankAmount: Number(ob.bank_balance) || 0,
           setByUserId: ob.set_by_user_id || '',
@@ -402,6 +403,7 @@ export async function syncStockInUpsert(si: StockInTransaction) {
       created_by_user_id: si.createdByUserId || null,
       created_by_name: si.createdByName || null,
       items: si.items || [],
+      created_at: si.createdAt || new Date().toISOString(),
     }, { onConflict: 'id' });
 
     if (error) {
@@ -438,6 +440,7 @@ export async function syncStockOutUpsert(so: StockOutTransaction) {
       created_by_user_id: so.createdByUserId || null,
       created_by_name: so.createdByName || null,
       items: so.items || [],
+      created_at: so.createdAt || new Date().toISOString(),
     }, { onConflict: 'id' });
 
     if (error) {
@@ -486,6 +489,7 @@ export async function syncSaleUpsert(s: SaleTransaction) {
       cancellation_reason: s.cancellationReason || null,
       cancelled_at: s.cancelledAt || null,
       cancelled_by_name: s.cancelledByName || null,
+      created_at: s.createdAt || new Date().toISOString(),
     }, { onConflict: 'id' });
 
     if (error) {

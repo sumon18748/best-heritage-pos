@@ -23,12 +23,14 @@ import {
 import { canStockOut } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
+import { getBangladeshTodayDateString, sortByNewestFirst } from '../utils/dateUtils';
 
 export interface UnifiedStockOutItem {
   id: string;
   sourceType: 'sale' | 'manual';
   referenceNo: string;
   date: string;
+  createdAt?: string;
   branchId: string;
   branchName: string;
   categoryName: string;
@@ -85,7 +87,7 @@ export const StockOutView: React.FC = () => {
   const [editNotice, setEditNotice] = useState<{ success: boolean; message: string } | null>(null);
 
   // Form state
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getBangladeshTodayDateString();
   const [formDate, setFormDate] = useState(todayStr);
   const [formBranchId, setFormBranchId] = useState(
     currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''
@@ -240,6 +242,7 @@ export const StockOutView: React.FC = () => {
       sourceType: 'manual',
       referenceNo: stk.referenceNo,
       date: stk.date,
+      createdAt: stk.createdAt,
       branchId: stk.branchId,
       branchName: stk.branchName,
       categoryName: stk.items[0]?.categoryName || 'General',
@@ -264,6 +267,7 @@ export const StockOutView: React.FC = () => {
         sourceType: 'sale',
         referenceNo: sale.invoiceNo,
         date: sale.date,
+        createdAt: sale.createdAt,
         branchId: sale.branchId,
         branchName: sale.branchName,
         categoryName: sale.items[0]?.categoryName || 'General',
@@ -284,13 +288,12 @@ export const StockOutView: React.FC = () => {
       }));
 
     const combined = [...manualList, ...salesList];
-    combined.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    return combined;
+    return sortByNewestFirst(combined);
   }, [stockOuts, sales]);
 
   // Filter history
   const filteredStockOuts = useMemo(() => {
-    return allStockOutItems.filter((stk) => {
+    const matches = allStockOutItems.filter((stk) => {
       const matchesSource = sourceFilter === 'all' || stk.sourceType === sourceFilter;
       const matchesBranch = effectiveBranchId === 'all' || stk.branchId === effectiveBranchId;
       const matchesCategory =
@@ -306,6 +309,8 @@ export const StockOutView: React.FC = () => {
 
       return matchesSource && matchesBranch && matchesCategory && matchesSearch;
     });
+
+    return sortByNewestFirst(matches);
   }, [allStockOutItems, sourceFilter, effectiveBranchId, activeCategoryTab, searchTerm]);
 
   const activeBranchLabel = isBranchRestricted

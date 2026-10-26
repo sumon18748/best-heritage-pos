@@ -20,6 +20,7 @@ import {
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName } from '../types';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 export const CurrentStockView: React.FC = () => {
   const {
@@ -248,7 +249,7 @@ export const CurrentStockView: React.FC = () => {
       headers,
       dataRows,
       summaryStats,
-      fileName: `BestHeritage_CurrentStock_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      fileName: `BestHeritage_CurrentStock_${getBangladeshTodayDateString()}.xlsx`,
     });
   };
 
@@ -331,7 +332,7 @@ export const CurrentStockView: React.FC = () => {
       headers,
       dataRows,
       summaryStats,
-      fileName: `BestHeritage_CurrentStock_${new Date().toISOString().slice(0, 10)}.pdf`,
+      fileName: `BestHeritage_CurrentStock_${getBangladeshTodayDateString()}.pdf`,
     });
   };
 
@@ -404,7 +405,7 @@ export const CurrentStockView: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `BestHeritage_CurrentStock_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `BestHeritage_CurrentStock_${getBangladeshTodayDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

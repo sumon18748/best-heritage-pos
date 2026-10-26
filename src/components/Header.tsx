@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { getBangladeshTimeString, getBangladeshFullDateString } from '../utils/dateUtils';
 import {
   Building2,
   Bell,
@@ -70,19 +71,8 @@ export const Header: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const formattedTime = currentDateTime.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
-
-  const formattedDate = currentDateTime.toLocaleDateString('en-US', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const formattedTime = getBangladeshTimeString(currentDateTime);
+  const formattedDate = getBangladeshFullDateString(currentDateTime);
 
   // Read Notifications Tracking (Persisted in localStorage)
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {

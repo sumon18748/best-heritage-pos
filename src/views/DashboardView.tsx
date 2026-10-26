@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { MainCategoryName } from '../types';
 import { calculateStockAlertStatus, formatCurrencyBDT, calculateNetProfit, calculateCashBankBalances } from '../utils/stockCalculations';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 export const DashboardView: React.FC = () => {
   const {
@@ -61,7 +62,7 @@ export const DashboardView: React.FC = () => {
     ? branchStocks
     : branchStocks.filter((s) => s.branchId === effectiveBranchId);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getBangladeshTodayDateString();
 
   const relevantSales = sales.filter((s) => {
     const branchMatch = isAllBranches || s.branchId === effectiveBranchId;

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getBangladeshTodayDateString } from './dateUtils';
 
 export interface PdfExportOptions {
   reportTitle: string;
@@ -153,7 +154,7 @@ export function exportReportToPdf(options: PdfExportOptions): void {
   const doc = generatePdfDocument(options);
   const safeFileName =
     options.fileName ||
-    `BestHeritage_${options.reportTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    `BestHeritage_${options.reportTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${getBangladeshTodayDateString()}.pdf`;
 
   doc.save(safeFileName);
 }

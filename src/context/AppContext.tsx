@@ -25,6 +25,7 @@ import {
   UserPermissions,
 } from '../types';
 import { getDefaultPermissionsForRole, INITIAL_ROLE_PERMISSIONS } from '../utils/permissionUtils';
+import { getBangladeshTodayDateString, getBangladeshDateCompact, sortByNewestFirst } from '../utils/dateUtils';
 import {
   INITIAL_USERS,
   INITIAL_BRANCHES,
@@ -599,11 +600,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // ── Stock Ins ──
         if (data.stockIns !== null) {
           if (data.stockIns.length > 0) {
-            setStockIns(data.stockIns);
+            setStockIns(sortByNewestFirst(data.stockIns));
           } else {
             setStockIns((prevLocal) => {
               if (prevLocal.length > 0) prevLocal.forEach((si) => syncStockInUpsert(si));
-              return prevLocal;
+              return sortByNewestFirst(prevLocal);
             });
           }
         }
@@ -611,11 +612,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // ── Stock Outs ──
         if (data.stockOuts !== null) {
           if (data.stockOuts.length > 0) {
-            setStockOuts(data.stockOuts);
+            setStockOuts(sortByNewestFirst(data.stockOuts));
           } else {
             setStockOuts((prevLocal) => {
               if (prevLocal.length > 0) prevLocal.forEach((so) => syncStockOutUpsert(so));
-              return prevLocal;
+              return sortByNewestFirst(prevLocal);
             });
           }
         }
@@ -623,11 +624,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // ── Sales ──
         if (data.sales !== null) {
           if (data.sales.length > 0) {
-            setSales(data.sales);
+            setSales(sortByNewestFirst(data.sales));
           } else {
             setSales((prevLocal) => {
               if (prevLocal.length > 0) prevLocal.forEach((s) => syncSaleUpsert(s));
-              return prevLocal;
+              return sortByNewestFirst(prevLocal);
             });
           }
         }
@@ -1081,7 +1082,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const newProductId = `prod_${Date.now()}`;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getBangladeshTodayDateString();
     const category = categories.find((c) => c.id === productData.categoryId);
 
     const newProduct: Product = {
@@ -1152,7 +1153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...p,
           ...productData,
           categoryName: category ? category.name : p.categoryName,
-          updatedAt: new Date().toISOString().split('T')[0],
+          updatedAt: getBangladeshTodayDateString(),
         };
         return updatedProd;
       })
@@ -1189,7 +1190,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newBranch: Branch = {
       ...branchData,
       id: newBranchId,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: getBangladeshTodayDateString(),
     };
 
     setBranches((prev) => [...prev, newBranch]);
@@ -1248,7 +1249,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       password: userData.password || '123456',
       id: `usr_${Date.now()}`,
       branchName: branch?.name,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: getBangladeshTodayDateString(),
     };
 
     setUsers((prev) => [...prev, newUser]);
@@ -1306,7 +1307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!branch) return { success: false, message: 'Invalid branch selected.' };
     if (!data.items || data.items.length === 0) return { success: false, message: 'No items provided for Stock In.' };
 
-    const refNo = `SIN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    const refNo = `SIN-${getBangladeshDateCompact()}-${Math.floor(100 + Math.random() * 900)}`;
 
     let totalQuantity = 0;
     let totalPurchaseCost = 0;
@@ -1350,7 +1351,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalPurchaseCost: Number(totalPurchaseCost.toFixed(2)),
       createdByUserId: currentUser.id,
       createdByName: currentUser.name,
-      createdAt: new Date().toLocaleString(),
+      createdAt: new Date().toISOString(),
     };
 
     const movementsToAdd: StockMovement[] = [];
@@ -1474,7 +1475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...p,
           sellingPrice: newSellingPrice,
           purchasePrice: newPurchasePrice,
-          updatedAt: new Date().toISOString().split('T')[0],
+          updatedAt: getBangladeshTodayDateString(),
         };
         syncProductUpsert(updated);
         return updated;
@@ -1591,7 +1592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...p,
             sellingPrice: newSellingPrice,
             purchasePrice: newPurchasePrice,
-            updatedAt: new Date().toISOString().split('T')[0],
+            updatedAt: getBangladeshTodayDateString(),
           };
           syncProductUpsert(updated);
           return updated;
@@ -1660,7 +1661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         movementsToAdd.push({
           id: `mov_del_sin_${Date.now()}_${item.productId}`,
           timestamp: new Date().toLocaleString(),
-          date: new Date().toISOString().split('T')[0],
+          date: getBangladeshTodayDateString(),
           branchId: tx.branchId,
           branchName: tx.branchName,
           productId: item.productId,
@@ -1733,7 +1734,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const refNo = `SOUT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    const refNo = `SOUT-${getBangladeshDateCompact()}-${Math.floor(100 + Math.random() * 900)}`;
 
     let totalQuantity = 0;
     const itemsWithDetails = data.items.map((item, idx) => {
@@ -1762,7 +1763,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalQuantity,
       createdByUserId: currentUser.id,
       createdByName: currentUser.name,
-      createdAt: new Date().toLocaleString(),
+      createdAt: new Date().toISOString(),
     };
 
     const movementsToAdd: StockMovement[] = [];
@@ -1963,7 +1964,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         movementsToAdd.push({
           id: `mov_del_sout_${Date.now()}_${item.productId}`,
           timestamp: new Date().toLocaleString(),
-          date: new Date().toISOString().split('T')[0],
+          date: getBangladeshTodayDateString(),
           branchId: tx.branchId,
           branchName: tx.branchName,
           productId: item.productId,
@@ -2067,7 +2068,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const invoiceNo = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const invoiceNo = `INV-${getBangladeshDateCompact()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     let totalQuantitySold = 0;
     const saleItems: SaleItem[] = [];
@@ -2195,7 +2196,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdByUserId: currentUser.id,
       createdByName: currentUser.name,
       status: 'completed',
-      createdAt: new Date().toLocaleString(),
+      createdAt: new Date().toISOString(),
     };
 
     const movementsToAdd: StockMovement[] = [];
@@ -2357,7 +2358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           movementsToAdd.push({
             id: `mov_cancel_${Date.now()}_${item.productId}`,
             timestamp: new Date().toLocaleString(),
-            date: new Date().toISOString().split('T')[0],
+            date: getBangladeshTodayDateString(),
             branchId: sale.branchId,
             branchName: sale.branchName,
             productId: item.productId,
@@ -2384,7 +2385,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           movementsToAdd.push({
             id: `mov_cancel_${Date.now()}_${item.productId}`,
             timestamp: new Date().toLocaleString(),
-            date: new Date().toISOString().split('T')[0],
+            date: getBangladeshTodayDateString(),
             branchId: sale.branchId,
             branchName: sale.branchName,
             productId: item.productId,
@@ -2635,7 +2636,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             movementsToAdd.push({
               id: `mov_del_${Date.now()}_${item.productId}`,
               timestamp: new Date().toLocaleString(),
-              date: new Date().toISOString().split('T')[0],
+              date: getBangladeshTodayDateString(),
               branchId: sale.branchId,
               branchName: sale.branchName,
               productId: item.productId,
@@ -2662,7 +2663,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             movementsToAdd.push({
               id: `mov_del_${Date.now()}_${item.productId}`,
               timestamp: new Date().toLocaleString(),
-              date: new Date().toISOString().split('T')[0],
+              date: getBangladeshTodayDateString(),
               branchId: sale.branchId,
               branchName: sale.branchName,
               productId: item.productId,
@@ -2739,7 +2740,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: check.message || 'Transfer quantity invalid.' };
     }
 
-    const transferNo = `TRF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    const transferNo = `TRF-${getBangladeshDateCompact()}-${Math.floor(100 + Math.random() * 900)}`;
     const unitPurchaseCost = prod.purchasePrice;
     const totalTransferCost = Number((data.quantity * unitPurchaseCost).toFixed(2));
 
@@ -2865,7 +2866,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movement: StockMovement = {
       id: `mov_${Date.now()}`,
       timestamp: new Date().toLocaleString(),
-      date: new Date().toISOString().split('T')[0],
+      date: getBangladeshTodayDateString(),
       branchId: trf.destinationBranchId,
       branchName: trf.destinationBranchName,
       productId: trf.productId,
@@ -2929,7 +2930,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const movement: StockMovement = {
       id: `mov_${Date.now()}`,
       timestamp: new Date().toLocaleString(),
-      date: new Date().toISOString().split('T')[0],
+      date: getBangladeshTodayDateString(),
       branchId: trf.sourceBranchId,
       branchName: trf.sourceBranchName,
       productId: trf.productId,
@@ -3013,7 +3014,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!branch) return { success: false, message: 'Invalid branch.' };
     if (!data.amount || data.amount <= 0) return { success: false, message: 'Expense amount must be greater than zero.' };
 
-    const voucherNo = `VCH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    const voucherNo = `VCH-${getBangladeshDateCompact()}-${Math.floor(100 + Math.random() * 900)}`;
 
     const newExp: OperatingExpense = {
       id: `exp_${Date.now()}`,
@@ -3110,7 +3111,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `exp_cat_${Date.now()}`,
       name: trimmed,
       description: description?.trim() || '',
-      createdAt: new Date().toISOString().slice(0, 10),
+      createdAt: getBangladeshTodayDateString(),
       isDefault: false,
     };
 

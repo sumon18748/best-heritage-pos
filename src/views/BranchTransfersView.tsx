@@ -18,6 +18,7 @@ import { MainCategoryName } from '../types';
 import { formatCurrencyBDT } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 export const BranchTransfersView: React.FC = () => {
   const {
@@ -41,7 +42,7 @@ export const BranchTransfersView: React.FC = () => {
 
   // Form State
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getBangladeshTodayDateString(),
     sourceBranchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
     destinationBranchId: branches[1]?.id || '',
     categoryFilter: 'all',
@@ -127,7 +128,7 @@ export const BranchTransfersView: React.FC = () => {
       setNotification({ type: 'success', message: res.message });
       setShowModal(false);
       setFormData({
-        date: new Date().toISOString().split('T')[0],
+        date: getBangladeshTodayDateString(),
         sourceBranchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
         destinationBranchId: branches[1]?.id || '',
         categoryFilter: 'all',

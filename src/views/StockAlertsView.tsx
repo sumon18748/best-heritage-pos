@@ -20,6 +20,7 @@ import {
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName } from '../types';
+import { getBangladeshTodayDateString } from '../utils/dateUtils';
 
 export const StockAlertsView: React.FC = () => {
   const {
@@ -180,7 +181,7 @@ export const StockAlertsView: React.FC = () => {
         { label: 'Low Stock Items', value: `${lowStockCount} items` },
         { label: 'Filtered Alert Items', value: `${alertItems.length} items` },
       ],
-      fileName: `BestHeritage_Stock_Alerts_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      fileName: `BestHeritage_Stock_Alerts_${getBangladeshTodayDateString()}.xlsx`,
     });
   };
 
@@ -197,7 +198,7 @@ export const StockAlertsView: React.FC = () => {
         { label: 'Low Stock Items', value: `${lowStockCount} items` },
         { label: 'Filtered Alert Items', value: `${alertItems.length} items` },
       ],
-      fileName: `BestHeritage_Stock_Alerts_${new Date().toISOString().slice(0, 10)}.pdf`,
+      fileName: `BestHeritage_Stock_Alerts_${getBangladeshTodayDateString()}.pdf`,
     });
   };
 
@@ -214,7 +215,7 @@ export const StockAlertsView: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `BestHeritage_Stock_Alerts_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `BestHeritage_Stock_Alerts_${getBangladeshTodayDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
