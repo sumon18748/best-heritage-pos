@@ -719,4 +719,73 @@ export function getNextBranchCode(branches?: { code?: string }[] | null): string
   return String(maxNum + 1).padStart(4, '0');
 }
 
+export interface BranchLike {
+  id: string;
+  name: string;
+  code: string;
+  address?: string;
+  contactNumber?: string;
+  isActive?: boolean;
+  createdAt?: string;
+}
+
+/**
+ * Normalizes branch list to guarantee:
+ * 1. Head Office is always the first branch (code '0001').
+ * 2. Any other branch (including any added branch that was assigned '0001' or 'AFT-01')
+ *    gets sequential codes starting from '0002'.
+ */
+export function normalizeBranchList<T extends BranchLike>(
+  list: T[],
+  defaultHeadOffice?: T
+): T[] {
+  if (!Array.isArray(list) || list.length === 0) {
+    return defaultHeadOffice ? [defaultHeadOffice] : [];
+  }
+
+  const rawList = [...list];
+
+  // 1. Find Head Office by ID or by name
+  let headOffice = rawList.find(
+    (b) => b.id === 'br_head_office' || b.name.trim().toLowerCase().includes('head office')
+  );
+
+  if (!headOffice) {
+    headOffice = defaultHeadOffice || ({
+      id: 'br_head_office',
+      name: 'Head Office',
+      code: '0001',
+      address: 'Head Office, Dhaka, Bangladesh',
+      contactNumber: '+880 1700-000001',
+      isActive: true,
+      createdAt: '2026-01-01',
+    } as T);
+  } else {
+    headOffice = {
+      ...headOffice,
+      code: '0001',
+    };
+  }
+
+  // 2. All other branches
+  const otherBranches = rawList.filter(
+    (b) => b.id !== headOffice!.id && !b.name.trim().toLowerCase().includes('head office')
+  );
+
+  // 3. Sequential remapping for non-Head Office branches (starts at 0002)
+  const normalizedOthers = otherBranches.map((b, idx) => {
+    let code = b.code;
+    if (code === '0001' || code === 'AFT-01' || !code) {
+      code = String(idx + 2).padStart(4, '0');
+    }
+    return {
+      ...b,
+      code,
+    };
+  });
+
+  return [headOffice, ...normalizedOthers];
+}
+
+
 

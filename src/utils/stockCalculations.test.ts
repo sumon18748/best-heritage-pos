@@ -15,6 +15,7 @@ import {
   calculateDecantStockDeduction,
   calculateDecantCancelRestore,
   getNextBranchCode,
+  normalizeBranchList,
 } from './stockCalculations.ts';
 
 test('calculateCurrentStock uses the business formula accurately', () => {
@@ -421,6 +422,26 @@ test('Branch code auto generation: first branch is 0001 (Head Office), followed 
   // Even if legacy codes exist, numeric max is respected
   assert.equal(getNextBranchCode([{ code: '0009' }]), '0010');
 });
+
+test('normalizeBranchList: Head Office is 0001 and any added branch is 0002', () => {
+  // Scenario from User: A branch was added and took code 0001 while Head Office was missing
+  const userAddedBranchList = [
+    { id: 'br_custom', name: 'Uttara Branch', code: '0001' },
+  ];
+
+  const normalized = normalizeBranchList(userAddedBranchList);
+  assert.equal(normalized.length, 2);
+
+  // 1. Head Office is at index 0 with code 0001
+  assert.equal(normalized[0].name, 'Head Office');
+  assert.equal(normalized[0].code, '0001');
+
+  // 2. The added branch is now at index 1 with code 0002
+  assert.equal(normalized[1].id, 'br_custom');
+  assert.equal(normalized[1].name, 'Uttara Branch');
+  assert.equal(normalized[1].code, '0002');
+});
+
 
 
 
