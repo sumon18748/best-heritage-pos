@@ -756,7 +756,7 @@ export const ProductsView: React.FC = () => {
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-semibold text-slate-700">Product SKU / Code *</label>
                       <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                        অটো জেনারেটেড
+                        Auto Generated
                       </span>
                     </div>
                     <input
@@ -771,7 +771,7 @@ export const ProductsView: React.FC = () => {
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-semibold text-slate-700">Barcode *</label>
                       <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
-                        অটো ইউনিক
+                        Auto Unique
                       </span>
                     </div>
                     <input
@@ -858,10 +858,10 @@ export const ProductsView: React.FC = () => {
                 <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-indigo-950">
-                      ⚖️ Package Net Size / Weight / Volume (প্যাকেটের মোট ওজন বা মাপ)
+                      ⚖️ Package Net Size / Weight / Volume
                     </label>
                     <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-100 px-2 py-0.5 rounded-full">
-                      মাস্টার পরিমাপ
+                      Master Spec
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -882,17 +882,17 @@ export const ProductsView: React.FC = () => {
                         onChange={(e) => setFormPackageUnit(e.target.value)}
                         className="w-full px-3 py-2 text-xs border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white font-semibold text-slate-800"
                       >
-                        <option value="ml">ml (মিলিমিটার)</option>
-                        <option value="g">g (গ্রাম)</option>
-                        <option value="kg">kg (কেজি)</option>
-                        <option value="pcs">pcs (পিস)</option>
-                        <option value="oz">oz (আউন্স)</option>
-                        <option value="L">L (লিটার)</option>
+                        <option value="ml">ml (Milliliter)</option>
+                        <option value="g">g (Gram)</option>
+                        <option value="kg">kg (Kilogram)</option>
+                        <option value="pcs">pcs (Pieces)</option>
+                        <option value="oz">oz (Ounce)</option>
+                        <option value="L">L (Liter)</option>
                       </select>
                     </div>
                   </div>
                   <p className="text-[10px] text-indigo-600">
-                    প্রতিটি সিল করা বোতল/প্যাকেটের মোট পরিমাণ (যেমন পারফিউম 100ml, ফুড 500g)। স্টক ইন করার সময় মোট হিসাব এবং সেল করার সময় ভেঙে বিক্রির ভিত্তি হিসেবে এটি ব্যবহৃত হবে।
+                    Total net volume or weight per sealed pack (e.g. Perfume 100ml, Food 500g). Used for inventory calculation and loose decant sales.
                   </p>
                 </div>
               </form>

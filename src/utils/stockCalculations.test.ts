@@ -354,7 +354,7 @@ test('Multi-Price Stock In: quantities sum together and lowest cost batch sells 
 
   // 3. Sale 2: Customer orders 7 units!
   // Batch 1 (@ 100 Tk) only has 5 units.
-  // Requirement: "দুইটা আলাদা আলাদা ভাবে সেল করতে হবে। কম দামেরটা আগে সেল হবে তারপরে বেশি দামেরটা হবে।"
+  // Requirement: "Must allocate separately. Lowest price batch sells first, followed by higher price."
   const allocation2 = allocateSaleFromLowestCostBatches(batchesInitial, 7);
   assert.equal(allocation2.length, 2, 'Must split into two separate batch sales');
   // First allocation: 5 units @ 100 Tk (lowest price batch exhausted first)

@@ -281,7 +281,7 @@ export const SalesEntryView: React.FC = () => {
     }
 
     if (!paymentMethod) {
-      setErrorMessage('পেমেন্ট মেথড নির্বাচন করা হয়নি! বিল তৈরি করার জন্য অবশ্যই পেমেন্ট মেথড সিলেক্ট করতে হবে।');
+      setErrorMessage('Payment method is required! Please select a payment method before completing the sale.');
       return;
     }
 
@@ -465,7 +465,7 @@ export const SalesEntryView: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Payment Method <span className="text-rose-500 font-bold">*</span></span>
                   {!paymentMethod && (
-                    <span className="text-[10px] text-amber-600 font-medium">বাধ্যতামূলক</span>
+                    <span className="text-[10px] text-amber-600 font-medium">Required</span>
                   )}
                 </label>
                 <select
@@ -481,7 +481,7 @@ export const SalesEntryView: React.FC = () => {
                   }`}
                   required
                 >
-                  <option value="" disabled>-- পেমেন্ট মেথড সিলেক্ট করুন * --</option>
+                  <option value="" disabled>-- Select Payment Method * --</option>
                   <option value="Cash">Cash (Till)</option>
                   <option value="bKash">bKash (Digital)</option>
                   <option value="Nagad">Nagad (Digital)</option>
@@ -490,7 +490,7 @@ export const SalesEntryView: React.FC = () => {
                 </select>
                 {!paymentMethod && (
                   <p className="text-[10px] text-amber-600 mt-1 font-medium">
-                    * বিল তৈরি করতে অবশ্যই পেমেন্ট মেথড সিলেক্ট করতে হবে
+                    * Please select a payment method to generate bill
                   </p>
                 )}
               </div>
@@ -676,7 +676,7 @@ export const SalesEntryView: React.FC = () => {
                                     onClick={() => handleToggleDecant(idx)}
                                     className="px-2 py-0.5 text-[10px] font-bold rounded-lg border bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 transition-all flex items-center space-x-1"
                                   >
-                                    <span>⚖️ Switch to Loose / ভেঙে বিক্রি ({unit})</span>
+                                    <span>⚖️ Switch to Loose / Decant Sale ({unit})</span>
                                   </button>
                                 );
                               }
@@ -811,7 +811,7 @@ export const SalesEntryView: React.FC = () => {
               </div>
 
               <div className="flex justify-between items-center text-slate-600">
-                <span>Subtotal (মোট মূল্য):</span>
+                <span>Subtotal:</span>
                 <span className="font-semibold text-slate-900 font-mono">{formatCurrencyBDT(grandTotals.subtotal)}</span>
               </div>
 
@@ -820,7 +820,7 @@ export const SalesEntryView: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 flex items-center space-x-1">
                     <Tag className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>ডিসকাউন্ট (Discount)</span>
+                    <span>Discount</span>
                   </label>
                   {calculatedDiscountAmount > 0 && (
                     <span className="text-xs font-bold text-rose-600 font-mono">
@@ -840,7 +840,7 @@ export const SalesEntryView: React.FC = () => {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Cash (৳)
+                    Cash (Tk)
                   </button>
                   <button
                     type="button"
@@ -871,13 +871,13 @@ export const SalesEntryView: React.FC = () => {
                     className="w-full pl-3 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                    {discountType === 'percentage' ? '%' : '৳'}
+                    {discountType === 'percentage' ? '%' : 'Tk'}
                   </span>
                 </div>
 
                 {discountValue !== '' && Number(discountValue) > 0 && (
                   <div className="flex justify-between items-center text-[11px] text-slate-500 pt-0.5">
-                    <span>প্রযোজ্য ছাড়:</span>
+                    <span>Applied Discount:</span>
                     <span className="font-semibold text-rose-600">
                       {discountType === 'percentage'
                         ? `${discountValue}% = ${formatCurrencyBDT(calculatedDiscountAmount)}`

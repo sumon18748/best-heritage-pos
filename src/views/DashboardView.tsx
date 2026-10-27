@@ -333,8 +333,8 @@ export const DashboardView: React.FC = () => {
                 <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
                   <span>
                     {cashMetrics.byBranch.some((b) => b.isAutoFromPreviousDay)
-                      ? '🔄 গতকালের ক্লোজিং থেকে অটো যুক্ত'
-                      : 'নির্ধারিত ওপেনিং ব্যালেন্স'}
+                      ? '🔄 Auto rolled over from yesterday'
+                      : 'Defined opening float'}
                   </span>
                   <span className="text-emerald-700 font-semibold group-hover:underline">Update Float →</span>
                 </div>
@@ -642,14 +642,14 @@ export const DashboardView: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <Coins className="w-4 h-4 text-amber-600" />
                   <span className="text-xs font-bold text-slate-800">
-                    🏢 শাখাভিত্তিক প্রারম্ভিক ক্যাশ ও চলতি ড্রয়ার ক্যাশ (Branch Opening & Till Cash)
+                    🏢 Branch Opening Float & Current Till Cash
                   </span>
                 </div>
                 <button
                   onClick={() => setActiveTab('expenses')}
                   className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
                 >
-                  ক্যাশ ও ব্যাংক বিস্তারিত →
+                  Cash & Bank Details →
                 </button>
               </div>
 
@@ -668,11 +668,11 @@ export const DashboardView: React.FC = () => {
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-slate-200/60 font-mono">
                       <div>
-                        <span className="text-slate-400 block text-[10px]">ওপেনিং ক্যাশ</span>
+                        <span className="text-slate-400 block text-[10px]">Opening Float</span>
                         <span className="font-bold text-amber-700">{formatCurrencyBDT(bm.openingCash)}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">চলতি ড্রয়ার ক্যাশ</span>
+                        <span className="text-slate-400 block text-[10px]">Current Till Cash</span>
                         <span className="font-bold text-emerald-700">{formatCurrencyBDT(bm.currentPhysicalCash)}</span>
                       </div>
                     </div>

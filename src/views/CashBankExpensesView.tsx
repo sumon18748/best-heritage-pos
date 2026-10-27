@@ -163,7 +163,7 @@ export const CashBankExpensesView: React.FC = () => {
   const handleSaveOpeningBalance = (e: React.FormEvent) => {
     e.preventDefault();
     if (!obBranchId) {
-      setNotification({ type: 'error', message: 'অনুগ্রহ করে ব্রাঞ্চ সিলেক্ট করুন।' });
+      setNotification({ type: 'error', message: 'Please select a branch.' });
       return;
     }
     const cashVal = parseFloat(obCashAmount) || 0;
@@ -469,10 +469,10 @@ export const CashBankExpensesView: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
-                <span>🏢 ব্রাঞ্চভিত্তিক প্রারম্ভিক ও চলতি ক্যাশ সারসংক্ষেপ (Branch Opening & Till Cash)</span>
+                <span>🏢 Branch Opening & Till Cash Summary</span>
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                প্রতিটি ব্রাঞ্চের জন্য দিন শেষের অবশিষ্ট ক্যাশ স্বয়ংক্রিয়ভাবে পরবর্তী দিনের প্রারম্ভিক ব্যালেন্স (Opening Float) হিসেবে যুক্ত হয়।
+                The end-of-day closing cash for each branch automatically rolls over as the next day's Opening Float.
               </p>
             </div>
             <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
@@ -484,14 +484,14 @@ export const CashBankExpensesView: React.FC = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                  <th className="py-2.5 px-3">ব্রাঞ্চের নাম</th>
-                  <th className="py-2.5 px-3">প্রারম্ভিক ক্যাশ (Opening Float)</th>
-                  <th className="py-2.5 px-3">আজকের ক্যাশ বিক্রয়</th>
-                  <th className="py-2.5 px-3">আজকের ক্যাশ খরচ</th>
-                  <th className="py-2.5 px-3">চলতি ক্যাশ (Physical Cash)</th>
-                  <th className="py-2.5 px-3">ডিজিটাল/ব্যাংক ব্যালেন্স</th>
-                  <th className="py-2.5 px-3 text-center">ফ্লোট উৎস</th>
-                  <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
+                  <th className="py-2.5 px-3">Branch Name</th>
+                  <th className="py-2.5 px-3">Opening Float</th>
+                  <th className="py-2.5 px-3">Today Cash Sales</th>
+                  <th className="py-2.5 px-3">Today Cash Expenses</th>
+                  <th className="py-2.5 px-3">Physical Cash (Till)</th>
+                  <th className="py-2.5 px-3">Digital / Bank Balance</th>
+                  <th className="py-2.5 px-3 text-center">Float Source</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -522,7 +522,7 @@ export const CashBankExpensesView: React.FC = () => {
                           ? 'bg-amber-50 text-amber-700 border border-amber-200'
                           : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       }`}>
-                        {bm.isAutoFromPreviousDay ? '🔄 গতকালের ক্লোজিং (Auto)' : '✓ ম্যানুয়াল ফ্লোট'}
+                        {bm.isAutoFromPreviousDay ? '🔄 Yesterday Closing (Auto)' : '✓ Manual Float'}
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-right">
@@ -530,7 +530,7 @@ export const CashBankExpensesView: React.FC = () => {
                         onClick={() => handleOpenFloatModal(bm.branchId)}
                         className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
                       >
-                        ফ্লোট অ্যাডজাস্ট
+                        Adjust Float
                       </button>
                     </td>
                   </tr>
@@ -547,14 +547,14 @@ export const CashBankExpensesView: React.FC = () => {
           <div className="flex items-center space-x-2">
             <Coins className="w-4 h-4 text-amber-600 shrink-0" />
             <span>
-              <strong>ব্রাঞ্চ প্রারম্ভিক ক্যাশ:</strong> গতকালের দিন শেষের ক্লোজিং ক্যাশ থেকে আজকের প্রারম্ভিক ক্যাশ হিসেবে <strong>{formatCurrencyBDT(balances.openingCash)}</strong> স্বয়ংক্রিয়ভাবে ধার্য করা হয়েছে।
+              <strong>Branch Opening Cash:</strong> Yesterday's closing cash has been automatically set as today's opening cash balance: <strong>{formatCurrencyBDT(balances.openingCash)}</strong>.
             </span>
           </div>
           <button
             onClick={() => handleOpenFloatModal(targetBranchId)}
             className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-800 font-semibold rounded-lg border border-amber-300 shadow-2xs text-[11px] transition-colors cursor-pointer shrink-0"
           >
-            ফ্লোট পরিবর্তন করুন
+            Adjust Float
           </button>
         </div>
       )}
@@ -1001,7 +1001,7 @@ export const CashBankExpensesView: React.FC = () => {
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Coins className="w-5 h-5 text-amber-400" />
-                <h3 className="text-sm font-bold">প্রারম্ভিক ক্যাশ ফ্লোট (Opening Float) নির্ধারণ</h3>
+                <h3 className="text-sm font-bold">Set Opening Cash Float</h3>
               </div>
               <button
                 onClick={() => setShowOpeningBalanceModal(false)}
@@ -1013,7 +1013,7 @@ export const CashBankExpensesView: React.FC = () => {
 
             <form onSubmit={handleSaveOpeningBalance} className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">শাখা (Branch) *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Branch *</label>
                 {currentUser.role === 'manager' && currentUser.branchId ? (
                   <input
                     type="text"
@@ -1036,7 +1036,7 @@ export const CashBankExpensesView: React.FC = () => {
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium"
                     required
                   >
-                    <option value="">ব্রাঞ্চ নির্বাচন করুন</option>
+                    <option value="">Select Branch</option>
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
@@ -1045,7 +1045,7 @@ export const CashBankExpensesView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">তারিখ (Date) *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Date *</label>
                 <input
                   type="date"
                   value={obDate}
@@ -1058,7 +1058,7 @@ export const CashBankExpensesView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    ক্যাশ ইন ড্রয়ার (Tk) *
+                    Cash in Drawer (Tk) *
                   </label>
                   <input
                     type="number"
@@ -1070,12 +1070,12 @@ export const CashBankExpensesView: React.FC = () => {
                     className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-amber-700"
                     required
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">সকালের ফিজিক্যাল ক্যাশ</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Morning physical till cash</p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    ব্যাংক/ডিজিটাল (Tk)
+                    Bank / Digital (Tk)
                   </label>
                   <input
                     type="number"
@@ -1086,15 +1086,15 @@ export const CashBankExpensesView: React.FC = () => {
                     onChange={(e) => setObBankAmount(e.target.value)}
                     className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-blue-700"
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">bKash, ব্যাংক শুরু</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">bKash, bank starting float</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">মন্তব্য (Remarks / Notes)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Remarks / Notes</label>
                 <input
                   type="text"
-                  placeholder="যেমন: অতিরিক্ত চেঞ্জ বা ফ্লোট ক্যাশ ড্রয়ারে রাখা হলো"
+                  placeholder="e.g. Additional morning till float or change"
                   value={obNotes}
                   onChange={(e) => setObNotes(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
@@ -1107,14 +1107,14 @@ export const CashBankExpensesView: React.FC = () => {
                   onClick={() => setShowOpeningBalanceModal(false)}
                   className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
-                  বাতিল
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-sm transition-colors cursor-pointer flex items-center space-x-1"
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
-                  <span>সংরক্ষণ করুন</span>
+                  <span>Save Float</span>
                 </button>
               </div>
             </form>

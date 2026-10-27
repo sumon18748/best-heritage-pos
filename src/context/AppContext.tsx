@@ -1522,7 +1522,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     items?: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number }[];
   }) => {
     if (currentUser.role !== 'super_admin') {
-      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-ইন এডিট করতে পারবেন।' };
+      return { success: false, message: 'Unauthorized: Only Super Admin can edit stock-in records.' };
     }
 
     const tx = stockIns.find((t) => t.id === stockInId);
@@ -1659,7 +1659,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Super Admin: Delete Stock In (Reverses added stock)
   const deleteStockIn = (stockInId: string) => {
     if (currentUser.role !== 'super_admin') {
-      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-ইন ডিলিট করতে পারবেন।' };
+      return { success: false, message: 'Unauthorized: Only Super Admin can delete stock-in records.' };
     }
 
     const tx = stockIns.find((t) => t.id === stockInId);
@@ -1852,7 +1852,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     items?: { productId: string; quantity: number }[];
   }) => {
     if (currentUser.role !== 'super_admin') {
-      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-আউট এডিট করতে পারবেন।' };
+      return { success: false, message: 'Unauthorized: Only Super Admin can edit stock-out records.' };
     }
 
     const tx = stockOuts.find((t) => t.id === stockOutId);
@@ -1962,7 +1962,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Super Admin: Delete Stock Out (Restores deducted stock)
   const deleteStockOut = (stockOutId: string) => {
     if (currentUser.role !== 'super_admin') {
-      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার স্টক-আউট ডিলিট করতে পারবেন।' };
+      return { success: false, message: 'Unauthorized: Only Super Admin can delete stock-out records.' };
     }
 
     const tx = stockOuts.find((t) => t.id === stockOutId);
@@ -2474,7 +2474,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }[];
   }) => {
     if (currentUser.role !== 'super_admin') {
-      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার সেল ইনভয়েস এডিট করতে পারবেন।' };
+      return { success: false, message: 'Unauthorized: Only Super Admin can edit sale invoices.' };
     }
 
     const sale = sales.find((s) => s.id === saleId);
@@ -2619,7 +2619,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Permanently Delete Sale Invoice (Super Admin Only: Auto Stock-In / Restore)
   const deleteSale = (saleId: string) => {
     if (currentUser.role !== 'super_admin') {
-      return { success: false, message: 'অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার সেল ইনভয়েস সরাসরি ডিলিট করতে পারবেন।' };
+      return { success: false, message: 'Unauthorized: Only Super Admin can permanently delete sale invoices.' };
     }
 
     const sale = sales.find((s) => s.id === saleId);

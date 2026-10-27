@@ -635,7 +635,7 @@ export const CurrentStockView: React.FC = () => {
                     </div>
                     {row.activeBatches && row.activeBatches.length > 1 && (
                       <div className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="text-[10px] text-slate-400 font-medium">ব্যাচ:</span>
+                        <span className="text-[10px] text-slate-400 font-medium">Batch:</span>
                         {row.activeBatches.map((b, bIdx) => (
                           <span
                             key={b.batchId}
@@ -646,7 +646,7 @@ export const CurrentStockView: React.FC = () => {
                             }`}
                             title={bIdx === 0 ? 'Lowest Cost Batch: Sells First' : 'Higher Cost Batch'}
                           >
-                            {b.remainingQuantity} pcs {canViewProfit ? `@ Tk ${b.purchasePrice}` : ''} {bIdx === 0 ? '(১ম সেল)' : ''}
+                            {b.remainingQuantity} pcs {canViewProfit ? `@ Tk ${b.purchasePrice}` : ''} {bIdx === 0 ? '(1st Sale)' : ''}
                           </span>
                         ))}
                       </div>

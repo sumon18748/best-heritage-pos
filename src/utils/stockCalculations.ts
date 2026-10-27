@@ -622,7 +622,7 @@ export function getProductBatches(params: {
     }
   }
 
-  // 3. User's Golden Rule: "কম দামেরটা আগে সেল হবে তারপরে বেশি দামেরটা হবে"
+  // 3. User's Golden Rule: "Lowest cost batch sells first, followed by higher cost"
   // Primary sort: purchasePrice ASC (lowest cost first).
   // Secondary sort: date ASC (earliest first / FIFO).
   // FIFO: date ASC only — earliest batch out first, price does NOT matter
