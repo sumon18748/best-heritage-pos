@@ -147,6 +147,8 @@ export const CashBankExpensesView: React.FC = () => {
   }, [cashMetrics]);
 
   const handleOpenFloatModal = (branchId?: string) => {
+    // Only Super Admin can manually set opening cash float
+    if (currentUser.role !== 'super_admin') return;
     const defaultBranch =
       branchId ||
       (currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || '');
@@ -526,12 +528,14 @@ export const CashBankExpensesView: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      <button
-                        onClick={() => handleOpenFloatModal(bm.branchId)}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
-                      >
-                        Adjust Float
-                      </button>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleOpenFloatModal(bm.branchId)}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                        >
+                          Adjust Float
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -541,7 +545,7 @@ export const CashBankExpensesView: React.FC = () => {
         </div>
       )}
 
-      {/* Manager or Single Branch View Notice */}
+      {/* Single Branch View Notice */}
       {targetBranchId !== 'all' && (
         <div className="bg-amber-50/80 rounded-xl p-3.5 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900">
           <div className="flex items-center space-x-2">
@@ -550,12 +554,14 @@ export const CashBankExpensesView: React.FC = () => {
               <strong>Branch Opening Cash:</strong> Yesterday's closing cash has been automatically set as today's opening cash balance: <strong>{formatCurrencyBDT(balances.openingCash)}</strong>.
             </span>
           </div>
-          <button
-            onClick={() => handleOpenFloatModal(targetBranchId)}
-            className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-800 font-semibold rounded-lg border border-amber-300 shadow-2xs text-[11px] transition-colors cursor-pointer shrink-0"
-          >
-            Adjust Float
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleOpenFloatModal(targetBranchId)}
+              className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-800 font-semibold rounded-lg border border-amber-300 shadow-2xs text-[11px] transition-colors cursor-pointer shrink-0"
+            >
+              Adjust Float
+            </button>
+          )}
         </div>
       )}
 
@@ -994,8 +1000,8 @@ export const CashBankExpensesView: React.FC = () => {
       )}
 
 
-      {/* Set / Adjust Opening Float Modal */}
-      {showOpeningBalanceModal && (
+      {/* Set / Adjust Opening Float Modal — Super Admin Only */}
+      {isSuperAdmin && showOpeningBalanceModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100">
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
