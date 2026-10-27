@@ -71,7 +71,6 @@ export const ProductsView: React.FC = () => {
   const [formSubcategory, setFormSubcategory] = useState('');
   const [formPurchasePrice, setFormPurchasePrice] = useState('');
   const [formSellingPrice, setFormSellingPrice] = useState('');
-  const [formOpeningStock, setFormOpeningStock] = useState('10');
   const [formMinAlertLevel, setFormMinAlertLevel] = useState('8');
   const [formUnit, setFormUnit] = useState('Pcs');
   const [formStatus, setFormStatus] = useState<'active' | 'inactive'>('active');
@@ -141,7 +140,6 @@ export const ProductsView: React.FC = () => {
     setFormSubcategory('');
     setFormPurchasePrice('');
     setFormSellingPrice('');
-    setFormOpeningStock('10');
     setFormMinAlertLevel('8');
     setFormUnit('Pcs');
     setFormStatus('active');
@@ -214,7 +212,6 @@ export const ProductsView: React.FC = () => {
       return;
     }
 
-    const oStock = parseInt(formOpeningStock) || 0;
     const mAlert = parseInt(formMinAlertLevel) || 5;
 
     const targetCategory = categories.find((c) => c.id === formCategory);
@@ -256,7 +253,7 @@ export const ProductsView: React.FC = () => {
         subcategory: formSubcategory.trim() || undefined,
         purchasePrice: 0,
         sellingPrice: 0,
-        openingStock: oStock,
+        openingStock: 0,
         minAlertLevel: mAlert,
         unitOfMeasure: formUnit,
         status: formStatus,
@@ -818,18 +815,6 @@ export const ProductsView: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  {!editingProduct && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Opening Stock (Primary Branch)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formOpeningStock}
-                        onChange={(e) => setFormOpeningStock(e.target.value)}
-                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold"
-                      />
-                    </div>
-                  )}
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Min Stock Alert Level *</label>
                     <input
@@ -848,8 +833,8 @@ export const ProductsView: React.FC = () => {
                       onChange={(e) => setFormStatus(e.target.value as 'active' | 'inactive')}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                     >
-                      <option value="active">Active (Available for sale)</option>
-                      <option value="inactive">Inactive (Blocked from sales)</option>
+                      <option value="active">Active (Available for stock & sales)</option>
+                      <option value="inactive">Inactive (Archived)</option>
                     </select>
                   </div>
                 </div>
