@@ -149,9 +149,7 @@ export const CashBankExpensesView: React.FC = () => {
   const handleOpenFloatModal = (branchId?: string) => {
     // Only Super Admin can manually set opening cash float
     if (currentUser.role !== 'super_admin') return;
-    const defaultBranch =
-      branchId ||
-      (currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || '');
+    const defaultBranch = branchId || branches[0]?.id || '';
     setObBranchId(defaultBranch);
     setObDate(getBangladeshTodayDateString());
 

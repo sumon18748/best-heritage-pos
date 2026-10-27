@@ -355,6 +355,7 @@ export async function syncProductUpsert(p: Product) {
 
 export async function syncProductDelete(id: string) {
   try {
+    await supabase.from('branch_stocks').delete().eq('product_id', id);
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) console.error('Supabase syncProductDelete error:', error);
   } catch (err) {
@@ -627,6 +628,8 @@ export async function syncBranchUpsert(b: Branch) {
 
 export async function syncBranchDelete(id: string) {
   try {
+    await supabase.from('branch_stocks').delete().eq('branch_id', id);
+    await supabase.from('branch_opening_balances').delete().eq('branch_id', id);
     const { error } = await supabase.from('branches').delete().eq('id', id);
     if (error) console.error('Supabase syncBranchDelete error:', error);
   } catch (err) {

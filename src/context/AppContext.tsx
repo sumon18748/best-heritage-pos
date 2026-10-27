@@ -622,26 +622,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setRolePermissions((prev) => ({ ...prev, ...data.rolePermissions }));
         }
 
-        // ── Products: only overwrite if cloud has data, otherwise push local to cloud ──
+        // ── Products: Cloud is source of truth (never resurrect deleted data) ──
         if (data.products !== null) {
-          if (data.products.length > 0) {
-            setProducts(data.products);
-          } else {
-            // Cloud is empty – upload local data that was entered offline
-            setProducts((prevLocal) => {
-              if (prevLocal.length > 0) {
-                prevLocal.forEach((p) => syncProductUpsert(p));
-              }
-              return prevLocal;
-            });
-          }
+          setProducts(data.products);
         }
 
-        const loadedStockIns = data.stockIns !== null ? (data.stockIns.length > 0 ? data.stockIns : []) : [];
-        const loadedStockOuts = data.stockOuts !== null ? (data.stockOuts.length > 0 ? data.stockOuts : []) : [];
-        const loadedSales = data.sales !== null ? (data.sales.length > 0 ? data.sales : []) : [];
+        const loadedStockIns = data.stockIns !== null ? data.stockIns : [];
+        const loadedStockOuts = data.stockOuts !== null ? data.stockOuts : [];
+        const loadedSales = data.sales !== null ? data.sales : [];
 
-        // ── Branch Stocks (Heal and sync exact Stock In from all transactions) ──
+        // ── Branch Stocks (Heal current stock calculation in memory without write-loops) ──
         if (data.branchStocks !== null) {
           if (data.branchStocks.length > 0) {
             const healedStocks = data.branchStocks.map((s) => {
@@ -686,89 +676,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 purchaseReturn: s.purchaseReturn,
               });
 
-              const updated = {
+              return {
                 ...s,
                 stockIn: effectiveIn,
                 stockOut: effectiveOut,
                 quantitySold: effectiveSold,
                 currentStock,
               };
-
-              // If stock_in or current_stock was corrected, sync to Supabase
-              if (s.stockIn !== effectiveIn || s.currentStock !== currentStock) {
-                syncBranchStockUpsert(updated);
-              }
-
-              return updated;
             });
 
             setBranchStocks(healedStocks);
           } else {
-            setBranchStocks((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((s) => syncBranchStockUpsert(s));
-              return prevLocal;
-            });
+            setBranchStocks([]);
           }
         }
 
         // ── Stock Ins ──
         if (data.stockIns !== null) {
-          if (data.stockIns.length > 0) {
-            setStockIns(sortByNewestFirst(data.stockIns));
-          } else {
-            setStockIns((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((si) => syncStockInUpsert(si));
-              return sortByNewestFirst(prevLocal);
-            });
-          }
+          setStockIns(sortByNewestFirst(data.stockIns));
         }
 
         // ── Stock Outs ──
         if (data.stockOuts !== null) {
-          if (data.stockOuts.length > 0) {
-            setStockOuts(sortByNewestFirst(data.stockOuts));
-          } else {
-            setStockOuts((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((so) => syncStockOutUpsert(so));
-              return sortByNewestFirst(prevLocal);
-            });
-          }
+          setStockOuts(sortByNewestFirst(data.stockOuts));
         }
 
         // ── Sales ──
         if (data.sales !== null) {
-          if (data.sales.length > 0) {
-            setSales(sortByNewestFirst(data.sales));
-          } else {
-            setSales((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((s) => syncSaleUpsert(s));
-              return sortByNewestFirst(prevLocal);
-            });
-          }
+          setSales(sortByNewestFirst(data.sales));
         }
 
         // ── Transfers ──
         if (data.transfers !== null) {
-          if (data.transfers.length > 0) {
-            setTransfers(data.transfers);
-          } else {
-            setTransfers((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((t) => syncTransferUpsert(t));
-              return prevLocal;
-            });
-          }
+          setTransfers(data.transfers);
         }
 
         // ── Expenses ──
         if (data.expenses !== null) {
-          if (data.expenses.length > 0) {
-            setExpenses(data.expenses);
-          } else {
-            setExpenses((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((e) => syncExpenseUpsert(e));
-              return prevLocal;
-            });
-          }
+          setExpenses(data.expenses);
         }
 
         // ── Expense Categories ──
@@ -778,26 +723,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // ── Opening Balances ──
         if (data.openingBalances !== null) {
-          if (data.openingBalances.length > 0) {
-            setOpeningBalances(data.openingBalances);
-          } else {
-            setOpeningBalances((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((ob) => syncOpeningBalanceUpsert(ob));
-              return prevLocal;
-            });
-          }
+          setOpeningBalances(data.openingBalances);
         }
 
         // ── Stock Movements ──
         if (data.movements !== null) {
-          if (data.movements.length > 0) {
-            setStockMovements(data.movements);
-          } else {
-            setStockMovements((prevLocal) => {
-              if (prevLocal.length > 0) prevLocal.forEach((m) => syncMovementInsert(m));
-              return prevLocal;
-            });
-          }
+          setStockMovements(data.movements);
         }
       } catch (err) {
         console.warn('Real-time sync pull error:', err);
