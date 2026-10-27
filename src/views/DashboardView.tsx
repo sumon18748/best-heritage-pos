@@ -100,18 +100,19 @@ export const DashboardView: React.FC = () => {
   const todayExpensesAmount = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   // Cash and Bank Balances (Auto-roll over from yesterday's closing cash if not manually set)
-  const activeBranchList = isAllBranches ? branches.map((b) => b.id) : [effectiveBranchId];
+  const activeBranches = useMemo(() => branches.filter((b) => b.isActive), [branches]);
+  const activeBranchList = isAllBranches ? activeBranches.map((b) => b.id) : [effectiveBranchId];
 
   const cashMetrics = useMemo(() => {
     return calculateConsolidatedCashMetrics({
       branchIds: activeBranchList,
-      branches,
+      branches: activeBranches,
       targetDate: todayStr,
       openingBalances,
       sales,
       expenses,
     });
-  }, [activeBranchList, branches, todayStr, openingBalances, sales, expenses]);
+  }, [activeBranchList, activeBranches, todayStr, openingBalances, sales, expenses]);
 
   const openingCash = cashMetrics.consolidated.openingCash;
   const openingBank = cashMetrics.consolidated.openingBank;

@@ -1424,7 +1424,7 @@ export const UserManagementView: React.FC = () => {
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none cursor-pointer"
                   >
                     <option value="all">All Branches</option>
-                    {branches.map((b) => (
+                    {branches.filter((b) => b.isActive).map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -1951,7 +1951,7 @@ export const UserManagementView: React.FC = () => {
                     onChange={(e) => setFormBranchId(e.target.value)}
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   >
-                    {branches.map((b) => (
+                    {branches.filter((b) => b.isActive).map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name} ({b.code})
                       </option>
@@ -2053,7 +2053,7 @@ export const UserManagementView: React.FC = () => {
                     onChange={(e) => setExpEditForm({ ...expEditForm, branchId: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   >
-                    {branches.map((b) => (
+                    {branches.filter((b) => b.isActive).map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>

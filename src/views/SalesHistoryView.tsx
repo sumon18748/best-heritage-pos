@@ -419,9 +419,9 @@ export const SalesHistoryView: React.FC = () => {
               className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
             >
               <option value="all">All Branches</option>
-              {branches.map((b) => (
+              {branches.filter((b) => b.isActive).map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name}
+                  {b.name} ({b.code})
                 </option>
               ))}
             </select>

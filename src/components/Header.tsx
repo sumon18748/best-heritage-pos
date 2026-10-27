@@ -26,7 +26,7 @@ import {
   Clock,
   Calendar,
 } from 'lucide-react';
-import { calculateStockAlertStatus } from '../utils/stockCalculations';
+import { calculateStockAlertStatus, isStockableBranch } from '../utils/stockCalculations';
 import { ActiveTab } from '../types';
 
 export const Header: React.FC = () => {
@@ -115,8 +115,8 @@ export const Header: React.FC = () => {
   // Build notifications list
   const stockNotifications = useMemo(() => {
     const targetBranches = effectiveBranchId === 'all'
-      ? branches
-      : branches.filter((b) => b.id === effectiveBranchId);
+      ? branches.filter((b) => b.isActive && isStockableBranch(b))
+      : branches.filter((b) => b.id === effectiveBranchId && b.isActive && isStockableBranch(b));
 
     const alerts: Array<{
       id: string;
@@ -347,7 +347,7 @@ export const Header: React.FC = () => {
                 className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer pr-2 min-w-0 w-full"
               >
                 <option value="all" className="bg-slate-900 text-white">All Branches (Consolidated)</option>
-                {branches.map((b) => (
+                {branches.filter((b) => b.isActive).map((b) => (
                   <option key={b.id} value={b.id} className="bg-slate-900 text-white">
                     {b.name} ({b.code})
                   </option>

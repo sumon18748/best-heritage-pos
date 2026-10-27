@@ -15,7 +15,7 @@ import {
   Package,
 } from 'lucide-react';
 import { MainCategoryName } from '../types';
-import { formatCurrencyBDT } from '../utils/stockCalculations';
+import { formatCurrencyBDT, isStockableBranch } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { getBangladeshTodayDateString } from '../utils/dateUtils';
@@ -40,11 +40,16 @@ export const BranchTransfersView: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  const stockableBranches = useMemo(
+    () => branches.filter((b) => isStockableBranch(b)),
+    [branches]
+  );
+
   // Form State
   const [formData, setFormData] = useState({
     date: getBangladeshTodayDateString(),
-    sourceBranchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
-    destinationBranchId: branches[1]?.id || '',
+    sourceBranchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (stockableBranches[0]?.id || ''),
+    destinationBranchId: stockableBranches[1]?.id || '',
     categoryFilter: 'all',
     productId: '',
     quantity: 1,
@@ -528,9 +533,9 @@ export const BranchTransfersView: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, sourceBranchId: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   >
-                    {branches.map((b) => (
+                    {stockableBranches.map((b) => (
                       <option key={b.id} value={b.id}>
-                        {b.name}
+                        {b.name} ({b.code})
                       </option>
                     ))}
                   </select>
@@ -543,11 +548,11 @@ export const BranchTransfersView: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, destinationBranchId: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   >
-                    {branches
+                    {stockableBranches
                       .filter((b) => b.id !== formData.sourceBranchId)
                       .map((b) => (
                         <option key={b.id} value={b.id}>
-                          {b.name}
+                          {b.name} ({b.code})
                         </option>
                       ))}
                   </select>

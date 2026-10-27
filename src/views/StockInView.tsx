@@ -20,7 +20,7 @@ import {
   Pencil,
   AlertTriangle,
 } from 'lucide-react';
-import { formatCurrencyBDT, calculateStockInCost } from '../utils/stockCalculations';
+import { formatCurrencyBDT, calculateStockInCost, isStockableBranch } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName, StockInTransaction } from '../types';
@@ -49,6 +49,12 @@ export const StockInView: React.FC = () => {
 
   const isSuperAdmin = currentUser.role === 'super_admin';
 
+  // Only active retail/warehouse branches can receive stock (Head Office is administrative only)
+  const stockableBranches = useMemo(
+    () => branches.filter((b) => isStockableBranch(b)),
+    [branches]
+  );
+
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>(selectedCategoryName || 'all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,7 +76,9 @@ export const StockInView: React.FC = () => {
   const todayStr = getBangladeshTodayDateString();
   const [formDate, setFormDate] = useState(todayStr);
   const [formBranchId, setFormBranchId] = useState(
-    currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''
+    currentUser.role === 'manager' && currentUser.branchId
+      ? currentUser.branchId
+      : (stockableBranches.find((b) => b.id === selectedBranchId)?.id || stockableBranches[0]?.id || '')
   );
   const [formCategory, setFormCategory] = useState<MainCategoryName>('Cosmetic Products');
   const [formSupplier, setFormSupplier] = useState('');
@@ -178,6 +186,10 @@ export const StockInView: React.FC = () => {
         sellingPrice: catProds[0]?.sellingPrice || 0,
       },
     ]);
+    const defaultBranch = currentUser.role === 'manager' && currentUser.branchId
+      ? currentUser.branchId
+      : (stockableBranches.find((b) => b.id === selectedBranchId)?.id || stockableBranches[0]?.id || '');
+    setFormBranchId(defaultBranch);
     setFormError('');
     setFormSuccess('');
     setIsModalOpen(true);
@@ -787,7 +799,7 @@ export const StockInView: React.FC = () => {
                       onChange={(e) => setFormBranchId(e.target.value)}
                       className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white font-medium"
                     >
-                      {branches.map((b) => (
+                      {stockableBranches.map((b) => (
                         <option key={b.id} value={b.id}>
                           {b.name} ({b.code})
                         </option>

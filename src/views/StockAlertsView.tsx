@@ -16,6 +16,7 @@ import {
 import {
   calculateStockAlertStatus,
   formatCurrencyBDT,
+  isStockableBranch,
 } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
@@ -416,9 +417,9 @@ export const StockAlertsView: React.FC = () => {
               className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
             >
               <option value="all">All Branches</option>
-              {branches.map((b) => (
+              {branches.filter((b) => b.isActive && isStockableBranch(b)).map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name}
+                  {b.name} ({b.code})
                 </option>
               ))}
             </select>

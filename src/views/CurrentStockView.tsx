@@ -16,6 +16,7 @@ import {
   calculateCurrentStock,
   calculateStockAlertStatus,
   formatCurrencyBDT,
+  isStockableBranch,
 } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
@@ -46,8 +47,36 @@ export const CurrentStockView: React.FC = () => {
 
   const effectiveBranchId = isBranchLocked ? currentUser.branchId! : filterBranchId;
 
+  // Only operational active retail branches carry stock (never Head Office or inactive branches)
+  const stockableBranches = React.useMemo(
+    () => branches.filter((b) => isStockableBranch(b)),
+    [branches]
+  );
+
+  React.useEffect(() => {
+    if (filterBranchId !== 'all') {
+      const match = stockableBranches.find((b) => b.id === filterBranchId);
+      if (!match) {
+        setFilterBranchId('all');
+      }
+    }
+  }, [filterBranchId, stockableBranches]);
+
   // Build rows combining Product details with Branch stock records
-  const stockRows = branchStocks
+  // Filter out any stocks that do NOT belong to an active stockable branch, and deduplicate
+  const validStocks = React.useMemo(() => {
+    const seen = new Set<string>();
+    const stockableIds = new Set(stockableBranches.map((b) => b.id));
+    return branchStocks.filter((s) => {
+      if (!stockableIds.has(s.branchId)) return false;
+      const key = `${s.branchId}_${s.productId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [branchStocks, stockableBranches]);
+
+  const stockRows = validStocks
     .map((stock) => {
       const product = products.find((p) => p.id === stock.productId);
       const branch = branches.find((b) => b.id === stock.branchId);
@@ -571,9 +600,9 @@ export const CurrentStockView: React.FC = () => {
               className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
             >
               <option value="all">All Branches</option>
-              {branches.map((b) => (
+              {stockableBranches.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name}
+                  {b.name} ({b.code})
                 </option>
               ))}
             </select>

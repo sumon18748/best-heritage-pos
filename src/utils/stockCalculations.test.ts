@@ -16,6 +16,7 @@ import {
   calculateDecantCancelRestore,
   getNextBranchCode,
   normalizeBranchList,
+  isStockableBranch,
 } from './stockCalculations.ts';
 
 test('calculateCurrentStock uses the business formula accurately', () => {
@@ -441,6 +442,25 @@ test('normalizeBranchList: Head Office is 0001 and any added branch is 0002', ()
   assert.equal(normalized[1].name, 'Uttara Branch');
   assert.equal(normalized[1].code, '0002');
 });
+
+test('isStockableBranch: Head Office and inactive branches cannot carry stock', () => {
+  // Head Office by id or code or name -> false
+  assert.equal(isStockableBranch({ id: 'br_head_office', code: '0001', name: 'Head Office', isActive: true }), false);
+  assert.equal(isStockableBranch({ id: 'br_1', code: '0001', name: 'Main Admin', isActive: true }), false);
+  assert.equal(isStockableBranch({ id: 'br_2', code: '0005', name: 'Head Office Executive', isActive: true }), false);
+
+  // Inactive outlet -> false
+  assert.equal(isStockableBranch({ id: 'br_aftabnagar', code: '0002', name: 'Aftabnagar Branch', isActive: false }), false);
+
+  // Active retail branch -> true
+  assert.equal(isStockableBranch({ id: 'br_aftabnagar', code: '0002', name: 'Aftabnagar Branch', isActive: true }), true);
+  assert.equal(isStockableBranch({ id: 'br_dhanmondi', code: '0003', name: 'Dhanmondi Branch', isActive: true }), true);
+
+  // Null/undefined -> false
+  assert.equal(isStockableBranch(null), false);
+  assert.equal(isStockableBranch(undefined), false);
+});
+
 
 
 

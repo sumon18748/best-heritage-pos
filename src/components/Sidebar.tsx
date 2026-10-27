@@ -20,7 +20,7 @@ import {
   Wallet,
   LogOut,
 } from 'lucide-react';
-import { calculateStockAlertStatus } from '../utils/stockCalculations';
+import { calculateStockAlertStatus, isStockableBranch } from '../utils/stockCalculations';
 
 interface NavItem {
   id: ActiveTab;
@@ -53,8 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
   const effectiveBranchId = isBranchLocked ? currentUser.branchId! : selectedBranchId;
 
   const targetBranches = effectiveBranchId === 'all'
-    ? branches
-    : branches.filter((b) => b.id === effectiveBranchId);
+    ? branches.filter((b) => b.isActive && isStockableBranch(b))
+    : branches.filter((b) => b.id === effectiveBranchId && b.isActive && isStockableBranch(b));
 
   let alertCount = 0;
   products.filter((p) => p.status !== 'inactive').forEach((prod) => {

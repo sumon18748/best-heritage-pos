@@ -54,6 +54,7 @@ import {
   AvailableBatch,
   getNextBranchCode,
   normalizeBranchList,
+  isStockableBranch,
 } from '../utils/stockCalculations';
 import {
   fetchAllCollections,
@@ -328,6 +329,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   };
 
+  const sanitizeBranchStocksList = (stocks: BranchProductStock[], currentBranches: Branch[]): BranchProductStock[] => {
+    if (!Array.isArray(stocks)) return [];
+    const stockable = currentBranches.filter((b) => isStockableBranch(b));
+    const targetBranch = stockable[0];
+    const stockMap = new Map<string, BranchProductStock>();
+
+    stocks.forEach((s) => {
+      const br = currentBranches.find((b) => b.id === s.branchId);
+      const isHeadOfficeStock =
+        s.branchId === 'br_head_office' ||
+        br?.code === '0001' ||
+        (br?.name || '').toLowerCase().includes('head office');
+
+      let effectiveBranchId = s.branchId;
+      if (isHeadOfficeStock) {
+        if (!targetBranch) return;
+        effectiveBranchId = targetBranch.id;
+      }
+
+      const effectiveBranch = currentBranches.find((b) => b.id === effectiveBranchId);
+      if (!isStockableBranch(effectiveBranch)) {
+        return;
+      }
+
+      const key = `${effectiveBranchId}_${s.productId}`;
+      const existing = stockMap.get(key);
+
+      if (existing) {
+        const mergedOpening = (existing.openingStock || 0) + (s.openingStock || 0);
+        const mergedStockIn = (existing.stockIn || 0) + (s.stockIn || 0);
+        const mergedStockOut = (existing.stockOut || 0) + (s.stockOut || 0);
+        const mergedSold = (existing.quantitySold || 0) + (s.quantitySold || 0);
+        const mergedCurrent = calculateCurrentStock({
+          openingStock: mergedOpening,
+          stockIn: mergedStockIn,
+          stockOut: mergedStockOut,
+          quantitySold: mergedSold,
+          salesReturn: existing.salesReturn || s.salesReturn,
+          purchaseReturn: existing.purchaseReturn || s.purchaseReturn,
+        });
+        existing.openingStock = mergedOpening;
+        existing.stockIn = mergedStockIn;
+        existing.stockOut = mergedStockOut;
+        existing.quantitySold = mergedSold;
+        existing.currentStock = mergedCurrent;
+      } else {
+        stockMap.set(key, {
+          ...s,
+          branchId: effectiveBranchId,
+        });
+      }
+    });
+
+    return Array.from(stockMap.values());
+  };
+
+  const sanitizeStockInsList = (txs: StockInTransaction[], currentBranches: Branch[]): StockInTransaction[] => {
+    if (!Array.isArray(txs)) return [];
+    const stockable = currentBranches.filter((b) => isStockableBranch(b));
+    const targetBranch = stockable[0];
+
+    return txs.map((tx) => {
+      const isHeadOffice =
+        tx.branchId === 'br_head_office' ||
+        currentBranches.find((b) => b.id === tx.branchId)?.code === '0001' ||
+        (tx.branchName || '').toLowerCase().includes('head office');
+
+      if (isHeadOffice && targetBranch) {
+        return {
+          ...tx,
+          branchId: targetBranch.id,
+          branchName: targetBranch.name,
+        };
+      }
+      return tx;
+    });
+  };
+
   const [branches, setBranches] = useState<Branch[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_branches`);
@@ -351,7 +430,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [branchStocks, setBranchStocks] = useState<BranchProductStock[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_branch_stocks`);
-      return saved ? JSON.parse(saved) : INITIAL_BRANCH_STOCKS;
+      const raw: BranchProductStock[] = saved ? JSON.parse(saved) : INITIAL_BRANCH_STOCKS;
+      const bSaved = localStorage.getItem(`${STORAGE_KEY}_branches`);
+      const currentBranches = normalizeBranchesList(bSaved ? JSON.parse(bSaved) : INITIAL_BRANCHES);
+      return sanitizeBranchStocksList(raw, currentBranches);
     } catch {
       return INITIAL_BRANCH_STOCKS;
     }
@@ -360,7 +442,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [stockIns, setStockIns] = useState<StockInTransaction[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_stock_ins`);
-      return saved ? JSON.parse(saved) : INITIAL_STOCK_INS;
+      const raw: StockInTransaction[] = saved ? JSON.parse(saved) : INITIAL_STOCK_INS;
+      const bSaved = localStorage.getItem(`${STORAGE_KEY}_branches`);
+      const currentBranches = normalizeBranchesList(bSaved ? JSON.parse(bSaved) : INITIAL_BRANCHES);
+      return sanitizeStockInsList(raw, currentBranches);
     } catch {
       return INITIAL_STOCK_INS;
     }
@@ -935,8 +1020,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSelectedBranchIdState(currentUser.branchId);
       return;
     }
+    if (branchId !== 'all') {
+      const b = branches.find((branch) => branch.id === branchId);
+      if (!b || !b.isActive) {
+        setSelectedBranchIdState('all');
+        return;
+      }
+    }
     setSelectedBranchIdState(branchId);
   };
+
+  // If currently selected branch becomes inactive, automatically reset to 'all'
+  useEffect(() => {
+    if (selectedBranchId !== 'all') {
+      const match = branches.find((b) => b.id === selectedBranchId && b.isActive);
+      if (!match) {
+        setSelectedBranchIdState('all');
+      }
+    }
+  }, [branches, selectedBranchId]);
 
   const getProductStockForBranch = (productId: string, branchId: string): BranchProductStock | undefined => {
     return branchStocks.find((s) => s.productId === productId && s.branchId === branchId);
@@ -1123,8 +1225,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setProducts((prev) => [newProduct, ...prev]);
 
-    // Initialize branch stock records for all active branches
-    const newBranchStocks: BranchProductStock[] = branches.map((branch, idx) => ({
+    // Initialize branch stock records only for active, stockable outlet branches (never Head Office)
+    const stockable = branches.filter((b) => isStockableBranch(b));
+    const newBranchStocks: BranchProductStock[] = stockable.map((branch, idx) => ({
       id: `bps_${Date.now()}_${idx}`,
       branchId: branch.id,
       productId: newProductId,
@@ -1142,13 +1245,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBranchStocks((prev) => [...prev, ...newBranchStocks]);
 
     let initialMovement: StockMovement | null = null;
-    if (productData.openingStock > 0 && branches.length > 0) {
+    if (productData.openingStock > 0 && stockable.length > 0) {
       initialMovement = {
         id: `mov_${Date.now()}`,
         timestamp: new Date().toLocaleString(),
         date: today,
-        branchId: branches[0].id,
-        branchName: branches[0].name,
+        branchId: stockable[0].id,
+        branchName: stockable[0].name,
         productId: newProductId,
         productName: newProduct.name,
         sku: newProduct.sku,
@@ -1226,26 +1329,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBranches((prev) => [...prev, newBranch]);
 
-    const newStocks: BranchProductStock[] = products.map((prod, idx) => ({
-      id: `bps_${Date.now()}_${idx}`,
-      branchId: newBranchId,
-      productId: prod.id,
-      openingStock: 0,
-      stockIn: 0,
-      stockOut: 0,
-      quantitySold: 0,
-      salesReturn: 0,
-      purchaseReturn: 0,
-      currentStock: 0,
-      minAlertLevel: prod.minAlertLevel,
-      lastUpdated: new Date().toLocaleString(),
-    }));
+    // Only create inventory records if the branch is a physical stock-holding location (never Head Office)
+    if (isStockableBranch(newBranch)) {
+      const newStocks: BranchProductStock[] = products.map((prod, idx) => ({
+        id: `bps_${Date.now()}_${idx}`,
+        branchId: newBranchId,
+        productId: prod.id,
+        openingStock: 0,
+        stockIn: 0,
+        stockOut: 0,
+        quantitySold: 0,
+        salesReturn: 0,
+        purchaseReturn: 0,
+        currentStock: 0,
+        minAlertLevel: prod.minAlertLevel,
+        lastUpdated: new Date().toLocaleString(),
+      }));
 
-    setBranchStocks((prev) => [...prev, ...newStocks]);
+      setBranchStocks((prev) => [...prev, ...newStocks]);
+      newStocks.forEach((st) => syncBranchStockUpsert(st));
+    }
 
     // Push to Supabase Cloud
     syncBranchUpsert(newBranch);
-    newStocks.forEach((st) => syncBranchStockUpsert(st));
 
     return { success: true, message: `Branch "${newBranch.name}" created successfully.`, branch: newBranch };
   };
@@ -1342,6 +1448,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const branch = branches.find((b) => b.id === data.branchId);
     if (!branch) return { success: false, message: 'Invalid branch selected.' };
+    if (!branch.isActive) return { success: false, message: `Cannot record Stock In for inactive branch "${branch.name}".` };
+    if (!isStockableBranch(branch)) {
+      return { success: false, message: 'Stock cannot be entered for Head Office. Please select an active outlet branch.' };
+    }
     if (!data.items || data.items.length === 0) return { success: false, message: 'No items provided for Stock In.' };
 
     const refNo = `SIN-${getBangladeshDateCompact()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -1751,6 +1861,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const branch = branches.find((b) => b.id === data.branchId);
     if (!branch) return { success: false, message: 'Invalid branch selected.' };
+    if (!branch.isActive) return { success: false, message: `Cannot record Stock Out for inactive branch "${branch.name}".` };
+    if (!isStockableBranch(branch)) {
+      return { success: false, message: 'Stock Out cannot be performed from Head Office. Please select an active outlet branch.' };
+    }
     if (!data.items || data.items.length === 0) return { success: false, message: 'No items provided for Stock Out.' };
 
     for (const item of data.items) {
@@ -2064,6 +2178,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const branch = branches.find((b) => b.id === data.branchId);
     if (!branch) return { success: false, message: 'Invalid branch selected.' };
+    if (!branch.isActive) return { success: false, message: `Cannot record sales for inactive branch "${branch.name}".` };
+    if (!isStockableBranch(branch)) {
+      return { success: false, message: 'Sales cannot be made from Head Office. Please select an active retail outlet.' };
+    }
     if (!data.paymentMethod) return { success: false, message: 'Payment method is required.' };
     if (!data.items || data.items.length === 0) return { success: false, message: 'No items in sale.' };
 
@@ -2767,6 +2885,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (!sourceBranch || !destBranch || !prod) {
       return { success: false, message: 'Invalid transfer details.' };
+    }
+
+    if (!sourceBranch.isActive || !destBranch.isActive) {
+      return { success: false, message: 'Transfers cannot involve inactive branches.' };
+    }
+
+    if (!isStockableBranch(sourceBranch) || !isStockableBranch(destBranch)) {
+      return { success: false, message: 'Transfers cannot involve Head Office. Both source and destination must be active inventory branches.' };
     }
 
     const sourceStock = branchStocks.find((s) => s.branchId === data.sourceBranchId && s.productId === data.productId);

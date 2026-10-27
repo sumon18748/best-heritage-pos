@@ -114,7 +114,7 @@ export const CashBankExpensesView: React.FC = () => {
 
   // Financial Balances calculation (Auto-roll over from yesterday's closing cash if not manually set)
   const relevantBranches = targetBranchId === 'all'
-    ? branches.map((b) => b.id)
+    ? branches.filter((b) => b.isActive).map((b) => b.id)
     : [targetBranchId];
 
   const todayStr = getBangladeshTodayDateString();
@@ -715,7 +715,7 @@ export const CashBankExpensesView: React.FC = () => {
                     onChange={(e) => setExpenseForm({ ...expenseForm, branchId: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none"
                   >
-                    {branches.map((b) => (
+                    {branches.filter((b) => b.isActive).map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -840,7 +840,7 @@ export const CashBankExpensesView: React.FC = () => {
                     onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   >
-                    {branches.map((b) => (
+                    {branches.filter((b) => b.isActive).map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -1037,7 +1037,7 @@ export const CashBankExpensesView: React.FC = () => {
                     required
                   >
                     <option value="">Select Branch</option>
-                    {branches.map((b) => (
+                    {branches.filter((b) => b.isActive).map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>

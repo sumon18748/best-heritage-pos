@@ -787,5 +787,22 @@ export function normalizeBranchList<T extends BranchLike>(
   return [headOffice, ...normalizedOthers];
 }
 
+/**
+ * Determines if a branch is an active, physical inventory-holding branch (outlet/warehouse).
+ * Head Office (code '0001') is strictly administrative and cannot carry physical stock.
+ * Inactive branches are excluded from all inventory operations.
+ */
+export function isStockableBranch(
+  branch?: { id?: string; code?: string; name?: string; isActive?: boolean } | null
+): boolean {
+  if (!branch) return false;
+  if (branch.isActive === false) return false;
+  if (branch.id === 'br_head_office') return false;
+  if (branch.code === '0001') return false;
+  if ((branch.name || '').trim().toLowerCase().includes('head office')) return false;
+  return true;
+}
+
+
 
 

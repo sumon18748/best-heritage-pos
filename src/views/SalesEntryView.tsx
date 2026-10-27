@@ -24,6 +24,7 @@ import {
   calculateDiscountAmount,
   formatCurrencyBDT,
   calculateDecantItemCost,
+  isStockableBranch,
 } from '../utils/stockCalculations';
 import { InvoiceModal } from '../components/InvoiceModal';
 import { getBangladeshTodayDateString } from '../utils/dateUtils';
@@ -49,10 +50,17 @@ export const SalesEntryView: React.FC = () => {
     selectedCategoryName,
   } = useApp();
 
+  const stockableBranches = React.useMemo(
+    () => branches.filter((b) => isStockableBranch(b)),
+    [branches]
+  );
+
   const todayStr = getBangladeshTodayDateString();
   const [salesDate, setSalesDate] = useState(todayStr);
   const [branchId, setBranchId] = useState(
-    currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''
+    currentUser.role === 'manager' && currentUser.branchId
+      ? currentUser.branchId
+      : (stockableBranches[0]?.id || '')
   );
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -452,9 +460,9 @@ export const SalesEntryView: React.FC = () => {
                     onChange={(e) => setBranchId(e.target.value)}
                     className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white font-medium"
                   >
-                    {branches.map((b) => (
+                    {stockableBranches.map((b) => (
                       <option key={b.id} value={b.id}>
-                        {b.name}
+                        {b.name} ({b.code})
                       </option>
                     ))}
                   </select>

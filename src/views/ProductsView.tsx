@@ -22,7 +22,7 @@ import {
   FileSpreadsheet,
   FileText,
 } from 'lucide-react';
-import { formatCurrencyBDT, calculateStockAlertStatus } from '../utils/stockCalculations';
+import { formatCurrencyBDT, calculateStockAlertStatus, isStockableBranch } from '../utils/stockCalculations';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
@@ -946,7 +946,7 @@ export const ProductsView: React.FC = () => {
 
             <div className="p-5 overflow-y-auto flex-1">
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {branches.map((branch) => {
+                {branches.filter((b) => isStockableBranch(b)).map((branch) => {
                   const stock = branchStocks.find(
                     (s) => s.productId === viewBranchStockProduct.id && s.branchId === branch.id
                   );

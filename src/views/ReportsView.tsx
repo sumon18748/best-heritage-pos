@@ -931,9 +931,9 @@ export const ReportsView: React.FC = () => {
               className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
             >
               <option value="all">All Branches (Consolidated)</option>
-              {branches.map((b) => (
+              {branches.filter((b) => b.isActive).map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name}
+                  {b.name} ({b.code})
                 </option>
               ))}
             </select>

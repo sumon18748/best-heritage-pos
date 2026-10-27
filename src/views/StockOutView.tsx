@@ -20,7 +20,7 @@ import {
   Trash2,
   ShoppingCart,
 } from 'lucide-react';
-import { canStockOut } from '../utils/stockCalculations';
+import { canStockOut, isStockableBranch } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { getBangladeshTodayDateString, sortByNewestFirst } from '../utils/dateUtils';
@@ -68,6 +68,11 @@ export const StockOutView: React.FC = () => {
 
   const isSuperAdmin = currentUser.role === 'super_admin';
 
+  const stockableBranches = useMemo(
+    () => branches.filter((b) => isStockableBranch(b)),
+    [branches]
+  );
+
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>(selectedCategoryName || 'all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'sale' | 'manual'>('all');
@@ -90,7 +95,9 @@ export const StockOutView: React.FC = () => {
   const todayStr = getBangladeshTodayDateString();
   const [formDate, setFormDate] = useState(todayStr);
   const [formBranchId, setFormBranchId] = useState(
-    currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : branches[0]?.id || ''
+    currentUser.role === 'manager' && currentUser.branchId
+      ? currentUser.branchId
+      : (stockableBranches.find((b) => b.id === selectedBranchId)?.id || stockableBranches[0]?.id || '')
   );
   const [formCategory, setFormCategory] = useState<MainCategoryName>('Cosmetic Products');
   const [formProductId, setFormProductId] = useState('');
@@ -784,9 +791,9 @@ export const StockOutView: React.FC = () => {
                       onChange={(e) => setFormBranchId(e.target.value)}
                       className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none bg-white font-medium"
                     >
-                      {branches.map((b) => (
+                      {stockableBranches.map((b) => (
                         <option key={b.id} value={b.id}>
-                          {b.name}
+                          {b.name} ({b.code})
                         </option>
                       ))}
                     </select>
