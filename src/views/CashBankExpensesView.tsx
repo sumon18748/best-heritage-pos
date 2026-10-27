@@ -361,13 +361,15 @@ export const CashBankExpensesView: React.FC = () => {
             <span>PDF (.pdf)</span>
           </button>
 
-          <button
-            onClick={() => handleOpenFloatModal()}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Coins className="w-4 h-4 text-amber-600" />
-            <span>Set / Adjust Float</span>
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleOpenFloatModal()}
+              className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+            >
+              <Coins className="w-4 h-4 text-amber-600" />
+              <span>Set / Adjust Float</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowExpenseModal(true)}
