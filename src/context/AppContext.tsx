@@ -320,13 +320,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const normalizeBranchesList = (list: Branch[]): Branch[] => {
-    const result = normalizeBranchList(list, INITIAL_BRANCHES[0]);
-    try {
-      result.forEach((b) => syncBranchUpsert(b));
-    } catch {
-      // safe fallback if sync is offline
-    }
-    return result;
+    return normalizeBranchList(list, INITIAL_BRANCHES[0]);
   };
 
   const sanitizeBranchStocksList = (stocks: BranchProductStock[], currentBranches: Branch[]): BranchProductStock[] => {
@@ -1044,6 +1038,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Super Admin explicit master deletion: removes product and associated branch stocks
       setProducts((prev) => prev.filter((p) => p.id !== productId));
       setBranchStocks((prev) => prev.filter((s) => s.productId !== productId));
+      setStockMovements((prev) => prev.filter((m) => m.productId !== productId));
       syncProductDelete(productId);
       return { success: true, message: `Product "${prod.name}" permanently deleted by Super Admin.` };
     }
@@ -1056,6 +1051,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Safe to permanently delete
     setProducts((prev) => prev.filter((p) => p.id !== productId));
     setBranchStocks((prev) => prev.filter((s) => s.productId !== productId));
+    setStockMovements((prev) => prev.filter((m) => m.productId !== productId));
     syncProductDelete(productId);
     return { success: true, message: `Product "${prod.name}" permanently deleted.` };
   };
@@ -1093,6 +1089,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (action === 'force_delete' || (action === 'delete' && isSuperAdmin)) {
       setBranches((prev) => prev.filter((b) => b.id !== branchId));
       setBranchStocks((prev) => prev.filter((s) => s.branchId !== branchId));
+      setStockMovements((prev) => prev.filter((m) => m.branchId !== branchId));
       syncBranchDelete(branchId);
       return { success: true, message: `Branch "${branch.name}" permanently deleted by Super Admin.` };
     }
@@ -1104,6 +1101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBranches((prev) => prev.filter((b) => b.id !== branchId));
     setBranchStocks((prev) => prev.filter((s) => s.branchId !== branchId));
+    setStockMovements((prev) => prev.filter((m) => m.branchId !== branchId));
     syncBranchDelete(branchId);
     return { success: true, message: `Branch "${branch.name}" permanently deleted.` };
   };

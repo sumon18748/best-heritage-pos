@@ -50,7 +50,7 @@ export async function fetchAllCollections() {
       supabase.from('operating_expenses').select('*').order('created_at', { ascending: false }),
       supabase.from('expense_categories').select('*'),
       supabase.from('branch_opening_balances').select('*'),
-      supabase.from('stock_movements').select('*').order('created_at', { ascending: false }),
+      supabase.from('stock_movements').select('*').order('timestamp', { ascending: false }),
     ]);
 
     const branches: Branch[] | null = branchesRes.data
@@ -356,6 +356,7 @@ export async function syncProductUpsert(p: Product) {
 export async function syncProductDelete(id: string) {
   try {
     await supabase.from('branch_stocks').delete().eq('product_id', id);
+    await supabase.from('stock_movements').delete().eq('product_id', id);
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) console.error('Supabase syncProductDelete error:', error);
   } catch (err) {
@@ -630,6 +631,7 @@ export async function syncBranchDelete(id: string) {
   try {
     await supabase.from('branch_stocks').delete().eq('branch_id', id);
     await supabase.from('branch_opening_balances').delete().eq('branch_id', id);
+    await supabase.from('stock_movements').delete().eq('branch_id', id);
     const { error } = await supabase.from('branches').delete().eq('id', id);
     if (error) console.error('Supabase syncBranchDelete error:', error);
   } catch (err) {
