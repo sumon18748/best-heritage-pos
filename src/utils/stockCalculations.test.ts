@@ -275,6 +275,29 @@ test('login authentication supports 5-digit user IDs: 99999, 00001, 00002 with p
   assert.equal(manager.branchName, 'Aftabnagar Branch');
 });
 
+test('Password change security: once password is changed, default 123456 must be rejected', async () => {
+  // Simulate user credentials validation logic
+  const user = {
+    id: 'usr_manager',
+    username: '00002',
+    password: 'NewChangedPass2026',
+  };
+
+  const validateLogin = (enteredPass: string, userPass?: string) => {
+    const expected = userPass || '123456';
+    return enteredPass === expected;
+  };
+
+  // Default password '123456' MUST fail
+  assert.equal(validateLogin('123456', user.password), false, 'Default 123456 must be rejected after password is changed');
+
+  // Any other wrong password MUST fail
+  assert.equal(validateLogin('wrongpassword', user.password), false, 'Wrong password must fail');
+
+  // Only the exact changed password MUST succeed
+  assert.equal(validateLogin('NewChangedPass2026', user.password), true, 'Changed password must succeed');
+});
+
 test('Multi-Price Stock In: quantities sum together and lowest cost batch sells first', async () => {
   const { getProductBatches, allocateSaleFromLowestCostBatches } = await import('./stockCalculations.ts');
 

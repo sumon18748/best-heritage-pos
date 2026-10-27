@@ -133,6 +133,7 @@ export const UserManagementView: React.FC = () => {
   const [formRole, setFormRole] = useState<UserRole>('manager');
   const [formBranchId, setFormBranchId] = useState<string>(branches[0]?.id || '');
   const [formPhone, setFormPhone] = useState('');
+  const [formPassword, setFormPassword] = useState('');
   const [formStatus, setFormStatus] = useState<'active' | 'inactive'>('active');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
@@ -304,6 +305,7 @@ export const UserManagementView: React.FC = () => {
     setFormRole('manager');
     setFormBranchId(branches[0]?.id || '');
     setFormPhone('+880 1711-');
+    setFormPassword('');
     setFormStatus('active');
     setFormError('');
     setFormSuccess('');
@@ -317,6 +319,7 @@ export const UserManagementView: React.FC = () => {
     setFormRole(u.role);
     setFormBranchId(u.branchId || branches[0]?.id || '');
     setFormPhone(u.phone || '');
+    setFormPassword('');
     setFormStatus(u.status);
     setFormError('');
     setFormSuccess('');
@@ -395,15 +398,25 @@ export const UserManagementView: React.FC = () => {
       return;
     }
 
+    if (formPassword.trim() && formPassword.trim().length < 6) {
+      setFormError('Password must be at least 6 characters long.');
+      return;
+    }
+
     if (editingUser) {
-      const res = updateUser(editingUser.id, {
+      const updatePayload: Partial<User> = {
         name: formName.trim(),
         email: formEmail.trim().toLowerCase(),
         role: formRole,
         branchId: formRole === 'manager' ? formBranchId : undefined,
         phone: formPhone.trim(),
         status: formStatus,
-      });
+      };
+      if (formPassword.trim()) {
+        updatePayload.password = formPassword.trim();
+      }
+
+      const res = updateUser(editingUser.id, updatePayload);
 
       if (res.success) {
         setFormSuccess('User profile updated successfully!');
@@ -423,6 +436,7 @@ export const UserManagementView: React.FC = () => {
         role: formRole,
         branchId: formRole === 'manager' ? formBranchId : undefined,
         phone: formPhone.trim(),
+        password: formPassword.trim() || '123456',
         status: formStatus,
         permissions: defaultPerms,
       });
@@ -1954,6 +1968,19 @@ export const UserManagementView: React.FC = () => {
                   onChange={(e) => setFormPhone(e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   placeholder="+880 1711-XXXXXX"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {editingUser ? 'Reset Password (Leave blank to keep current)' : 'Password (Min 6 characters, default: 123456)'}
+                </label>
+                <input
+                  type="password"
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono"
+                  placeholder={editingUser ? '•••••• (keep current)' : '123456'}
                 />
               </div>
 

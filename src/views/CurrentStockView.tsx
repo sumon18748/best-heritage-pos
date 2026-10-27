@@ -145,7 +145,10 @@ export const CurrentStockView: React.FC = () => {
         stockValue,
         alertStatus: status,
         decantConfig: product?.decantConfig,
-        openBottleMlRemaining: stock.openBottleMlRemaining || 0,
+        openBottleMlRemaining: Number(stock.openBottleMlRemaining) || 0,
+        packageSize: product?.packageSize || product?.bottleCapacityMl || product?.decantConfig?.bottleCapacityMl,
+        packageUnit: product?.packageUnit || (product?.categoryName === 'Perfume Products' ? 'ml' : 'g'),
+        unitOfMeasure: product?.unitOfMeasure || 'units',
       };
     })
     .filter((row) => {
@@ -210,7 +213,7 @@ export const CurrentStockView: React.FC = () => {
             r.stockIn,
             r.stockOut,
             r.quantitySold,
-            r.currentStock,
+            r.openBottleMlRemaining > 0 ? `${r.currentStock} (Open: ${r.openBottleMlRemaining} ${r.packageUnit})` : r.currentStock,
             formatCurrencyBDT(r.purchasePrice),
             formatCurrencyBDT(r.stockValue),
             r.alertStatus.replace('_', ' ').toUpperCase(),
@@ -224,7 +227,7 @@ export const CurrentStockView: React.FC = () => {
             r.stockIn,
             r.stockOut,
             r.quantitySold,
-            r.currentStock,
+            r.openBottleMlRemaining > 0 ? `${r.currentStock} (Open: ${r.openBottleMlRemaining} ${r.packageUnit})` : r.currentStock,
             formatCurrencyBDT(r.sellingPrice),
             r.alertStatus.replace('_', ' ').toUpperCase(),
           ]
@@ -295,7 +298,7 @@ export const CurrentStockView: React.FC = () => {
             r.stockIn,
             r.stockOut,
             r.quantitySold,
-            r.currentStock,
+            r.openBottleMlRemaining > 0 ? `${r.currentStock} (Open: ${r.openBottleMlRemaining} ${r.packageUnit})` : r.currentStock,
             formatCurrencyBDT(r.purchasePrice),
             formatCurrencyBDT(r.stockValue),
             r.alertStatus === 'out_of_stock' ? 'OUT' : r.alertStatus === 'low_stock' ? 'LOW' : 'OK',
@@ -309,7 +312,7 @@ export const CurrentStockView: React.FC = () => {
             r.stockIn,
             r.stockOut,
             r.quantitySold,
-            r.currentStock,
+            r.openBottleMlRemaining > 0 ? `${r.currentStock} (Open: ${r.openBottleMlRemaining} ${r.packageUnit})` : r.currentStock,
             formatCurrencyBDT(r.sellingPrice),
             r.alertStatus === 'out_of_stock' ? 'OUT' : r.alertStatus === 'low_stock' ? 'LOW' : 'OK',
           ]
@@ -378,7 +381,7 @@ export const CurrentStockView: React.FC = () => {
             r.stockIn,
             r.stockOut,
             r.quantitySold,
-            r.currentStock,
+            `"${r.openBottleMlRemaining > 0 ? `${r.currentStock} (Open: ${r.openBottleMlRemaining} ${r.packageUnit})` : r.currentStock}"`,
             r.purchasePrice.toFixed(2),
             r.stockValue.toFixed(2),
             r.alertStatus,
@@ -392,7 +395,7 @@ export const CurrentStockView: React.FC = () => {
             r.stockIn,
             r.stockOut,
             r.quantitySold,
-            r.currentStock,
+            `"${r.openBottleMlRemaining > 0 ? `${r.currentStock} (Open: ${r.openBottleMlRemaining} ${r.packageUnit})` : r.currentStock}"`,
             r.sellingPrice.toFixed(2),
             r.alertStatus,
           ]
@@ -621,9 +624,14 @@ export const CurrentStockView: React.FC = () => {
                 <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4">
                     <div className="font-semibold text-slate-900">{row.productName}</div>
-                    <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                    <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
                       <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{row.sku}</span>
-                      <span className="ml-1.5 text-slate-400">({row.categoryName})</span>
+                      <span className="text-slate-400">({row.categoryName})</span>
+                      {row.packageSize && (
+                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          ⚖️ {row.packageSize} {row.packageUnit}
+                        </span>
+                      )}
                     </div>
                     {row.activeBatches && row.activeBatches.length > 1 && (
                       <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -661,12 +669,12 @@ export const CurrentStockView: React.FC = () => {
                           : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       }`}
                     >
-                      {row.currentStock} units
+                      {row.currentStock} {row.unitOfMeasure || 'units'}
                     </span>
-                    {row.decantConfig?.isDecantable && (
+                    {row.openBottleMlRemaining > 0 && (
                       <div className="mt-1">
-                        <span className="inline-flex items-center text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
-                          🧴 Open: {row.openBottleMlRemaining} ml
+                        <span className="inline-flex items-center text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shadow-2xs">
+                          🧴 Open: {row.openBottleMlRemaining} {row.packageUnit || 'ml'}
                         </span>
                       </div>
                     )}

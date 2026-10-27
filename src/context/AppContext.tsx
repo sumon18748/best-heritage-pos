@@ -471,33 +471,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Resolve each user's effective permissions from rolePermissions before updating state.
         if (data.users && data.users.length > 0) {
           const cloudRolePerms = data.rolePermissions || {};
-          const resolvedUsers = data.users.map((u) => {
-            if (u.role === 'super_admin') return u;
-            // If user has individual overrides stored, keep them.
-            if (u.permissions && u.permissions.allowedTabs && u.permissions.allowedTabs.length > 0) return u;
-            // Otherwise fall back to role-level permissions from cloud or local defaults.
-            const rolePerm = cloudRolePerms[u.role] || getDefaultPermissionsForRole(u.role);
-            return { ...u, permissions: rolePerm };
+          setUsers((prevUsers) => {
+            return data.users!.map((cloudUser) => {
+              const localMatch = prevUsers.find((p) => p.id === cloudUser.id || p.username === cloudUser.username);
+              // Preserve changed local password if cloud returned default or empty
+              const effectivePassword = (localMatch?.password && localMatch.password !== '123456')
+                ? localMatch.password
+                : (cloudUser.password || localMatch?.password || '123456');
+
+              let userObj = { ...cloudUser, password: effectivePassword };
+              if (userObj.role === 'super_admin') return userObj;
+              // If user has individual overrides stored, keep them.
+              if (userObj.permissions && userObj.permissions.allowedTabs && userObj.permissions.allowedTabs.length > 0) return userObj;
+              // Otherwise fall back to role-level permissions from cloud or local defaults.
+              const rolePerm = cloudRolePerms[userObj.role] || getDefaultPermissionsForRole(userObj.role);
+              return { ...userObj, permissions: rolePerm };
+            });
           });
 
-          setUsers(resolvedUsers);
-
-          // Update the currentUser in-place (name, role, permissions) without logging out
+          // Update the currentUser in-place (name, role, permissions, password) without logging out
           setCurrentUserState((prevUser) => {
-            const matched = resolvedUsers.find(
+            const matched = data.users!.find(
               (u) => u.id === prevUser.id || u.username === prevUser.username
             );
             if (matched) {
-              return {
+              const effectivePassword = (prevUser.password && prevUser.password !== '123456')
+                ? prevUser.password
+                : (matched.password || prevUser.password || '123456');
+              const updated = {
                 ...prevUser,
                 name: matched.name,
                 email: matched.email,
                 role: matched.role,
                 branchId: matched.branchId,
                 branchName: matched.branchName,
-                permissions: matched.permissions,
+                permissions: matched.permissions || prevUser.permissions,
                 status: matched.status,
+                password: effectivePassword,
               };
+              try {
+                localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(updated));
+              } catch {
+                // ignore
+              }
+              return updated;
             }
             return prevUser;
           });
@@ -869,8 +886,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const expectedPassword = matchedUser.password || '123456';
-    if (cleanPass !== expectedPassword && cleanPass !== '123456') {
-      return { success: false, message: 'Incorrect password. Default password is: 123456' };
+    if (cleanPass !== expectedPassword) {
+      return { success: false, message: 'Incorrect password. Please enter your valid password.' };
     }
 
     setCurrentUserState(matchedUser);
@@ -1279,11 +1296,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (id === currentUser.id) {
       setCurrentUserState((prev) => {
         const branch = userData.branchId ? branches.find((b) => b.id === userData.branchId) : undefined;
-        return {
+        const updated = {
           ...prev,
           ...userData,
           branchName: userData.branchId ? (branch ? branch.name : prev.branchName) : prev.branchName,
         };
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
       });
     }
 

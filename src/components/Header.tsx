@@ -275,7 +275,8 @@ export const Header: React.FC = () => {
       setFeedback({ type: 'error', message: 'New password and confirmation do not match.' });
       return;
     }
-    if (currentUser.password && currentPasswordInput !== currentUser.password) {
+    const activeCurrentPassword = currentUser.password || '123456';
+    if (currentPasswordInput !== activeCurrentPassword) {
       setFeedback({ type: 'error', message: 'Current password does not match.' });
       return;
     }
@@ -790,28 +791,26 @@ export const Header: React.FC = () => {
             {/* Tab 2: Change Password */}
             {profileTab === 'password' && (
               <form onSubmit={handleSavePassword} className="p-5 space-y-4 text-xs">
-                {currentUser.password && (
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Current Password *</label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        value={currentPasswordInput}
-                        onChange={(e) => setCurrentPasswordInput(e.target.value)}
-                        className="w-full pl-3 pr-9 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-800 font-medium"
-                        placeholder="Enter current password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Current Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={currentPasswordInput}
+                      onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                      className="w-full pl-3 pr-9 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-800 font-medium"
+                      placeholder="Enter current password (default: 123456)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
-                )}
+                </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">New Password (Min 6 characters) *</label>
@@ -851,7 +850,7 @@ export const Header: React.FC = () => {
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 flex items-start space-x-2">
                   <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span>
-                    Keep your password confidential. Once updated, your credentials are saved to this browser session.
+                    Keep your password confidential. Once updated, your new password takes effect immediately and permanently. Default password will no longer work.
                   </span>
                 </div>
 
