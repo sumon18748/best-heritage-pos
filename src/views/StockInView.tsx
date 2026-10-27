@@ -44,6 +44,7 @@ export const StockInView: React.FC = () => {
     currentUser,
     selectedBranchId,
     selectedCategoryName,
+    canViewProfit,
   } = useApp();
 
   const isSuperAdmin = currentUser.role === 'super_admin';
