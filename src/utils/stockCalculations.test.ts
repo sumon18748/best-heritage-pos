@@ -14,6 +14,7 @@ import {
   calculateDecantItemCost,
   calculateDecantStockDeduction,
   calculateDecantCancelRestore,
+  getNextBranchCode,
 } from './stockCalculations.ts';
 
 test('calculateCurrentStock uses the business formula accurately', () => {
@@ -396,6 +397,31 @@ test('Multi-Price Stock In: quantities sum together and lowest cost batch sells 
   assert.equal(allocation3[0].purchasePrice, 150);
   assert.equal(allocation3[0].quantity, 3);
 });
+
+test('Branch code auto generation: first branch is 0001 (Head Office), followed by 0002, 0003, etc.', () => {
+  // Empty branches -> 0001 (Head Office)
+  assert.equal(getNextBranchCode([]), '0001');
+  assert.equal(getNextBranchCode(null), '0001');
+
+  // Head Office (0001) exists -> next branch is 0002
+  assert.equal(getNextBranchCode([{ code: '0001' }]), '0002');
+
+  // Two branches exist (0001, 0002) -> next branch is 0003
+  assert.equal(
+    getNextBranchCode([{ code: '0001' }, { code: '0002' }]),
+    '0003'
+  );
+
+  // Multiple sequential branches
+  assert.equal(
+    getNextBranchCode([{ code: '0001' }, { code: '0002' }, { code: '0003' }]),
+    '0004'
+  );
+
+  // Even if legacy codes exist, numeric max is respected
+  assert.equal(getNextBranchCode([{ code: '0009' }]), '0010');
+});
+
 
 
 

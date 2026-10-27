@@ -693,3 +693,30 @@ export function allocateSaleFromLowestCostBatches(
   return allocations;
 }
 
+/**
+ * Generates the next sequential 4-digit Branch Code.
+ * Rule:
+ *  - 1st Branch is always '0001' (Head Office).
+ *  - 2nd Branch onwards sequentially auto-increments: '0002', '0003', etc.
+ */
+export function getNextBranchCode(branches?: { code?: string }[] | null): string {
+  if (!branches || branches.length === 0) {
+    return '0001';
+  }
+
+  const numbers = branches
+    .map((b) => {
+      const match = (b?.code || '').match(/\d+/);
+      return match ? parseInt(match[0], 10) : 0;
+    })
+    .filter((n) => !isNaN(n) && n > 0);
+
+  if (numbers.length === 0) {
+    return '0001';
+  }
+
+  const maxNum = Math.max(...numbers);
+  return String(maxNum + 1).padStart(4, '0');
+}
+
+

@@ -52,6 +52,7 @@ import {
   getProductBatches,
   allocateSaleFromLowestCostBatches,
   AvailableBatch,
+  getNextBranchCode,
 } from '../utils/stockCalculations';
 import {
   fetchAllCollections,
@@ -316,10 +317,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const normalizeBranchesList = (list: Branch[]): Branch[] => {
+    if (!Array.isArray(list) || list.length === 0) {
+      return INITIAL_BRANCHES;
+    }
+    let updated = [...list];
+
+    // Migrate any legacy 'AFT-01' branch code to '0002'
+    updated = updated.map((b) => (b.code === 'AFT-01' ? { ...b, code: '0002' } : b));
+
+    // Ensure Head Office (code '0001') exists
+    const has0001 = updated.some((b) => b.code === '0001');
+    const headOfficeObj = updated.find((b) => b.name.toLowerCase().includes('head office'));
+
+    if (!has0001) {
+      if (headOfficeObj) {
+        updated = updated.map((b) => (b.id === headOfficeObj.id ? { ...b, code: '0001' } : b));
+      } else {
+        const headOffice: Branch = {
+          id: 'br_head_office',
+          name: 'Head Office',
+          code: '0001',
+          address: 'Head Office, Dhaka, Bangladesh',
+          contactNumber: '+880 1700-000001',
+          isActive: true,
+          createdAt: '2026-01-01',
+        };
+        updated = [headOffice, ...updated];
+      }
+    }
+
+    return updated;
+  };
+
   const [branches, setBranches] = useState<Branch[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_branches`);
-      return saved ? JSON.parse(saved) : INITIAL_BRANCHES;
+      return normalizeBranchesList(saved ? JSON.parse(saved) : INITIAL_BRANCHES);
     } catch {
       return INITIAL_BRANCHES;
     }
@@ -1198,14 +1232,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Add Branch
   const addBranch = (branchData: Omit<Branch, 'id' | 'createdAt'>) => {
-    const existingCode = branches.find((b) => b.code.toLowerCase() === branchData.code.toLowerCase());
+    const finalCode = (branchData.code?.trim() || getNextBranchCode(branches)).toUpperCase();
+    const existingCode = branches.find((b) => b.code.toLowerCase() === finalCode.toLowerCase());
     if (existingCode) {
-      return { success: false, message: `Branch Code "${branchData.code}" already exists.` };
+      return { success: false, message: `Branch Code "${finalCode}" already exists.` };
     }
 
     const newBranchId = `br_${Date.now()}`;
     const newBranch: Branch = {
       ...branchData,
+      code: finalCode,
       id: newBranchId,
       createdAt: getBangladeshTodayDateString(),
     };

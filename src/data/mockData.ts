@@ -84,13 +84,22 @@ export const INITIAL_USERS: User[] = [
 ];
 
 // --------------------------------------------------------------------
-// 3. Initial Retail Branch (Aftabnagar)
+// 3. Initial Branches (Head Office 0001, Retail Outlets 0002+)
 // --------------------------------------------------------------------
 export const INITIAL_BRANCHES: Branch[] = [
   {
+    id: 'br_head_office',
+    name: 'Head Office',
+    code: '0001',
+    address: 'Head Office, Dhaka, Bangladesh',
+    contactNumber: '+880 1700-000001',
+    isActive: true,
+    createdAt: '2026-01-01',
+  },
+  {
     id: 'br_aftabnagar',
     name: 'Aftabnagar Branch',
-    code: 'AFT-01',
+    code: '0002',
     address: 'Aftabnagar, Badda, Dhaka',
     contactNumber: '+880 1700-000000',
     isActive: true,

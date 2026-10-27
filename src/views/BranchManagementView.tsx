@@ -17,7 +17,7 @@ import {
   Check,
   Lock,
 } from 'lucide-react';
-import { formatCurrencyBDT } from '../utils/stockCalculations';
+import { formatCurrencyBDT, getNextBranchCode } from '../utils/stockCalculations';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
 export const BranchManagementView: React.FC = () => {
@@ -73,8 +73,9 @@ export const BranchManagementView: React.FC = () => {
   }
 
   const openAddModal = () => {
-    setFormName('');
-    setFormCode(`B-BR-${Math.floor(10 + Math.random() * 90)}`);
+    const nextCode = getNextBranchCode(branches);
+    setFormName(nextCode === '0001' ? 'Head Office' : '');
+    setFormCode(nextCode);
     setFormAddress('');
     setFormContact('+880 1711-');
     setFormIsActive(true);
@@ -207,13 +208,20 @@ export const BranchManagementView: React.FC = () => {
               <div>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-sm shadow-xs">
-                      {branch.code.substring(0, 3)}
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-xs font-mono shadow-xs shrink-0">
+                      {branch.code}
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-900 text-sm">{branch.name}</h3>
-                      <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                        {branch.code}
+                      <div className="flex items-center space-x-1.5 flex-wrap">
+                        <h3 className="font-bold text-slate-900 text-sm">{branch.name}</h3>
+                        {branch.code === '0001' && (
+                          <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-200 font-bold px-1.5 py-0.2 rounded">
+                            Head Office
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-semibold">
+                        Code: {branch.code}
                       </span>
                     </div>
                   </div>
@@ -338,15 +346,22 @@ export const BranchManagementView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Branch Code *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Branch Code *</label>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    Auto Generated
+                  </span>
+                </div>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. B-UTR-05"
+                  readOnly
                   value={formCode}
-                  onChange={(e) => setFormCode(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono uppercase"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 bg-slate-50 text-slate-700 rounded-lg font-mono font-bold cursor-not-allowed uppercase"
+                  placeholder="e.g. 0001, 0002"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Sequential code (0001 is Head Office, followed by 0002, 0003, etc.).
+                </p>
               </div>
 
               <div>
