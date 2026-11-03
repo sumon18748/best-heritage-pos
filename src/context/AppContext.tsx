@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   User,
@@ -939,6 +939,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setActiveTab('dashboard');
   };
+
+  // ── Auto-logout after 30 minutes of inactivity ───────────────────────────
+  const AUTO_LOGOUT_MS = 30 * 60 * 1000; // 30 minutes
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(() => {
+      setIsAuthenticated(false);
+      try {
+        localStorage.removeItem(`${STORAGE_KEY}_auth`);
+      } catch {
+        // ignore
+      }
+      setActiveTab('dashboard');
+    }, AUTO_LOGOUT_MS);
+  }, [AUTO_LOGOUT_MS]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      // Clear timer when logged out
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      return;
+    }
+    // Start timer & attach activity listeners
+    const events: string[] = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach((evt) => window.addEventListener(evt, resetInactivityTimer, { passive: true }));
+    resetInactivityTimer(); // start the first timer
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, resetInactivityTimer));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+  }, [isAuthenticated, resetInactivityTimer]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const setSelectedBranchId = (branchId: string) => {
     if (currentUser.role === 'manager' && currentUser.branchId) {

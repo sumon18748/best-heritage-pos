@@ -71,7 +71,7 @@ export const ProductsView: React.FC = () => {
   const [formSubcategory, setFormSubcategory] = useState('');
   const [formPurchasePrice, setFormPurchasePrice] = useState('');
   const [formSellingPrice, setFormSellingPrice] = useState('');
-  const [formMinAlertLevel, setFormMinAlertLevel] = useState('8');
+  const [formMinAlertLevel, setFormMinAlertLevel] = useState('');
   const [formUnit, setFormUnit] = useState('Pcs');
   const [formStatus, setFormStatus] = useState<'active' | 'inactive'>('active');
   const [formPackageSize, setFormPackageSize] = useState('');
@@ -140,7 +140,7 @@ export const ProductsView: React.FC = () => {
     setFormSubcategory('');
     setFormPurchasePrice('');
     setFormSellingPrice('');
-    setFormMinAlertLevel('8');
+    setFormMinAlertLevel('');
     setFormUnit('Pcs');
     setFormStatus('active');
     setFormPackageSize(defaultCat?.name === 'Perfume Products' ? '100' : defaultCat?.name === 'Food Products' ? '500' : '');
@@ -212,7 +212,11 @@ export const ProductsView: React.FC = () => {
       return;
     }
 
-    const mAlert = parseInt(formMinAlertLevel) || 5;
+    const mAlert = parseInt(formMinAlertLevel);
+    if (!formMinAlertLevel || isNaN(mAlert) || mAlert < 1) {
+      setFormError('Minimum Stock Alert Level is required and must be at least 1.');
+      return;
+    }
 
     const targetCategory = categories.find((c) => c.id === formCategory);
     const parsedPkgSize = formPackageSize ? parseFloat(formPackageSize) || undefined : undefined;
@@ -821,6 +825,7 @@ export const ProductsView: React.FC = () => {
                       type="number"
                       min="1"
                       required
+                      placeholder="e.g. 10"
                       value={formMinAlertLevel}
                       onChange={(e) => setFormMinAlertLevel(e.target.value)}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold"
