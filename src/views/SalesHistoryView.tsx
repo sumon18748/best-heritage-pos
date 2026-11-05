@@ -51,6 +51,8 @@ export const SalesHistoryView: React.FC = () => {
   );
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [selectedSaleForView, setSelectedSaleForView] = useState<SaleTransaction | null>(null);
 
   // Cancellation modal
@@ -83,13 +85,25 @@ export const SalesHistoryView: React.FC = () => {
     const matchesCategory =
       selectedCategory === 'all' ||
       s.items.some((i) => i.categoryName === selectedCategory);
-    const matchesSearch =
-      s.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.customerPhone && s.customerPhone.includes(searchTerm)) ||
-      s.items.some((i) => i.productName.toLowerCase().includes(searchTerm.toLowerCase()) || i.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesDate =
+      (!startDate || s.date >= startDate) &&
+      (!endDate || s.date <= endDate);
 
-    return matchesBranch && matchesStatus && matchesCategory && matchesSearch;
+    const q = searchTerm.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      s.invoiceNo.toLowerCase().includes(q) ||
+      s.customerName.toLowerCase().includes(q) ||
+      (s.customerPhone && s.customerPhone.includes(q)) ||
+      s.date.toLowerCase().includes(q) ||
+      (s.time && s.time.toLowerCase().includes(q)) ||
+      s.items.some(
+        (i) =>
+          i.productName.toLowerCase().includes(q) ||
+          i.sku.toLowerCase().includes(q)
+      );
+
+    return matchesBranch && matchesStatus && matchesCategory && matchesDate && matchesSearch;
   });
 
   const filteredSales = sortByNewestFirst(rawFilteredSales);
@@ -162,10 +176,19 @@ export const SalesHistoryView: React.FC = () => {
       ];
 
   const handleExportExcel = () => {
+    const dateRangeLabel = startDate && endDate
+      ? `${startDate} to ${endDate}`
+      : startDate
+      ? `From ${startDate}`
+      : endDate
+      ? `Until ${endDate}`
+      : undefined;
+
     exportReportToExcel({
       reportTitle: 'Sales History & Invoices Ledger',
       branchName: activeBranchLabel,
       categoryFilter: selectedCategory === 'all' ? 'All 3 Categories' : selectedCategory,
+      dateRange: dateRangeLabel,
       generatedBy: `${currentUser.name} (${currentUser.role.replace('_', ' ')})`,
       headers: exportHeaders,
       dataRows: exportRows,
@@ -175,10 +198,19 @@ export const SalesHistoryView: React.FC = () => {
   };
 
   const handleExportPdf = () => {
+    const dateRangeLabel = startDate && endDate
+      ? `${startDate} to ${endDate}`
+      : startDate
+      ? `From ${startDate}`
+      : endDate
+      ? `Until ${endDate}`
+      : undefined;
+
     exportReportToPdf({
       reportTitle: 'Sales History & Invoices Ledger',
       branchName: activeBranchLabel,
       categoryFilter: selectedCategory === 'all' ? 'All 3 Categories' : selectedCategory,
+      dateRange: dateRangeLabel,
       generatedBy: `${currentUser.name} (${currentUser.role.replace('_', ' ')})`,
       headers: exportHeaders,
       dataRows: exportRows,
@@ -418,47 +450,101 @@ export const SalesHistoryView: React.FC = () => {
       </div>
 
       {/* Filters and Search Bar */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search invoice number, customer name, phone, or product..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800"
-          />
-        </div>
-
-        {!isBranchLocked && (
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-slate-500 font-medium">Branch:</span>
-            <select
-              value={filterBranchId}
-              onChange={(e) => setFilterBranchId(e.target.value)}
-              className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
-            >
-              <option value="all">All Branches</option>
-              {branches.filter((b) => b.isActive).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="relative flex-1 min-w-[260px]">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search invoice number, customer name, phone, product, or date..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800"
+            />
           </div>
-        )}
 
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-slate-500 font-medium">Status:</span>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
-          >
-            <option value="all">All Status</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled (Void)</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Date Wise Filter */}
+            <div className="flex items-center space-x-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+              <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="text-xs text-slate-500 font-medium">Date:</span>
+              <input
+                type="date"
+                title="From Date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-xs border border-slate-300 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700 bg-white"
+              />
+              <span className="text-slate-400 text-xs font-medium">to</span>
+              <input
+                type="date"
+                title="To Date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-xs border border-slate-300 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700 bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const today = getBangladeshTodayDateString();
+                  setStartDate(today);
+                  setEndDate(today);
+                }}
+                className={`px-2 py-1 text-[11px] font-semibold rounded transition-colors cursor-pointer ${
+                  startDate === getBangladeshTodayDateString() && endDate === getBangladeshTodayDateString()
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-100'
+                }`}
+                title="Filter sales for today"
+              >
+                Today
+              </button>
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                  title="Clear Date Filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {!isBranchLocked && (
+              <div className="flex items-center space-x-1.5">
+                <span className="text-xs text-slate-500 font-medium">Branch:</span>
+                <select
+                  value={filterBranchId}
+                  onChange={(e) => setFilterBranchId(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
+                >
+                  <option value="all">All Branches</option>
+                  {branches.filter((b) => b.isActive).map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex items-center space-x-1.5">
+              <span className="text-xs text-slate-500 font-medium">Status:</span>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
+              >
+                <option value="all">All Status</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled (Void)</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
