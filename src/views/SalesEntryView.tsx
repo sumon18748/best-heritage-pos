@@ -557,50 +557,6 @@ export const SalesEntryView: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Item Picker Carousel */}
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">
-              Quick Add From {posCategory === 'all' ? 'All Divisions' : posCategory}
-            </span>
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-              {filteredCatalogProducts.slice(0, 8).map((prod) => {
-                const stock = getAvailableStock(prod.id);
-                const openMl = getOpenBottleMl(prod.id);
-                const isPerfume = prod.categoryName === 'Perfume Products';
-                const isOutOfStock = isPerfume ? stock <= 0 && openMl <= 0 : stock <= 0;
-
-                return (
-                  <button
-                    key={prod.id}
-                    type="button"
-                    disabled={isOutOfStock}
-                    onClick={() => handleQuickAddProduct(prod.id)}
-                    className="shrink-0 p-2 bg-white hover:bg-slate-100/90 rounded-xl border border-slate-200 text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed group shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="text-[11px] font-bold text-slate-800 truncate max-w-[130px] group-hover:text-emerald-700">
-                        {prod.name}
-                      </div>
-                      {isPerfume && (
-                        <span className="text-[9px] bg-indigo-100 text-indigo-700 font-bold px-1 rounded">
-                          🧴 Perfume
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 space-x-2">
-                      <span className="font-mono font-bold text-slate-900">
-                        {prod.sellingPrice > 0 ? formatCurrencyBDT(prod.sellingPrice) : '—'}
-                      </span>
-                      <span className={`px-1 py-0.2 rounded font-semibold ${!isOutOfStock ? 'text-emerald-700 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
-                        {isPerfume ? (openMl > 0 ? `${openMl}ml open` : `${stock} btl`) : `${stock} left`}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Sold Items Table Card */}
           <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
@@ -629,7 +585,7 @@ export const SalesEntryView: React.FC = () => {
                   <PackageSearch className="w-10 h-10 mb-3 opacity-30" />
                   <p className="text-sm font-semibold text-slate-500">No items added yet</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    Click <span className="font-bold text-emerald-600">+ Add Item</span> above or use the Quick Add strip to begin billing.
+                    Click <span className="font-bold text-emerald-600">+ Add Item</span> above to begin billing.
                   </p>
                 </div>
               )}
