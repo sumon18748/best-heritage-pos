@@ -18,7 +18,7 @@ import { MainCategoryName } from '../types';
 import { formatCurrencyBDT, isStockableBranch } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
-import { getBangladeshTodayDateString } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, getBangladeshCurrentTimeString, formatSaleTime } from '../utils/dateUtils';
 
 export const BranchTransfersView: React.FC = () => {
   const {
@@ -48,6 +48,7 @@ export const BranchTransfersView: React.FC = () => {
   // Form State
   const [formData, setFormData] = useState({
     date: getBangladeshTodayDateString(),
+    time: getBangladeshCurrentTimeString(),
     sourceBranchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (stockableBranches[0]?.id || ''),
     destinationBranchId: stockableBranches[1]?.id || '',
     categoryFilter: 'all',
@@ -122,6 +123,7 @@ export const BranchTransfersView: React.FC = () => {
 
     const res = createTransfer({
       date: formData.date,
+      time: formData.time,
       sourceBranchId: formData.sourceBranchId,
       destinationBranchId: formData.destinationBranchId,
       productId: formData.productId,
@@ -134,6 +136,7 @@ export const BranchTransfersView: React.FC = () => {
       setShowModal(false);
       setFormData({
         date: getBangladeshTodayDateString(),
+        time: getBangladeshCurrentTimeString(),
         sourceBranchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
         destinationBranchId: branches[1]?.id || '',
         categoryFilter: 'all',
@@ -174,10 +177,12 @@ export const BranchTransfersView: React.FC = () => {
       : ['Transfer No', 'Date', 'Source Branch', 'Destination Branch', 'Product', 'SKU', 'Category', 'Quantity', 'Status', 'Notes'];
 
     const dataRows = filteredTransfers.map((t) => {
+      const tStr = formatSaleTime(t);
+      const dateDisp = tStr ? `${t.date} ${tStr}` : t.date;
       if (canViewProfit) {
         return [
           t.transferNo,
-          t.date,
+          dateDisp,
           t.sourceBranchName,
           t.destinationBranchName,
           t.productName,
@@ -192,7 +197,7 @@ export const BranchTransfersView: React.FC = () => {
       }
       return [
         t.transferNo,
-        t.date,
+        dateDisp,
         t.sourceBranchName,
         t.destinationBranchName,
         t.productName,
@@ -224,10 +229,12 @@ export const BranchTransfersView: React.FC = () => {
       : ['Transfer No', 'Date', 'From Branch', 'To Branch', 'Product', 'Category', 'Qty', 'Status'];
 
     const dataRows = filteredTransfers.map((t) => {
+      const tStr = formatSaleTime(t);
+      const dateDisp = tStr ? `${t.date} ${tStr}` : t.date;
       if (canViewProfit) {
         return [
           t.transferNo,
-          t.date,
+          dateDisp,
           t.sourceBranchName,
           t.destinationBranchName,
           t.productName,
@@ -239,7 +246,7 @@ export const BranchTransfersView: React.FC = () => {
       }
       return [
         t.transferNo,
-        t.date,
+        dateDisp,
         t.sourceBranchName,
         t.destinationBranchName,
         t.productName,
@@ -405,7 +412,15 @@ export const BranchTransfersView: React.FC = () => {
                   return (
                     <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4 font-bold text-slate-800">{t.transferNo}</td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{t.date}</td>
+                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                        <div className="font-medium text-slate-800">{t.date}</div>
+                        {formatSaleTime(t) && (
+                          <div className="text-[10px] text-slate-400 font-mono flex items-center space-x-1 mt-0.5">
+                            <Clock className="w-3 h-3 shrink-0" />
+                            <span>{formatSaleTime(t)}</span>
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3 px-4 font-medium text-slate-700">{t.sourceBranchName}</td>
                       <td className="py-3 px-4 font-medium text-slate-700">{t.destinationBranchName}</td>
                       <td className="py-3 px-4">
@@ -497,15 +512,26 @@ export const BranchTransfersView: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateTransfer} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Transfer Date</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Transfer Date *</label>
                   <input
                     type="date"
                     required
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Transfer Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={formData.time}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium text-slate-800"
                   />
                 </div>
 

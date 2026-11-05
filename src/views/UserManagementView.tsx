@@ -46,6 +46,7 @@ import {
   Building,
   Tag,
   FolderPlus,
+  Clock,
 } from 'lucide-react';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 import {
@@ -55,6 +56,7 @@ import {
   PERMISSION_PRESETS,
 } from '../utils/permissionUtils';
 import { formatCurrencyBDT } from '../utils/stockCalculations';
+import { getBangladeshCurrentTimeString, formatSaleTime } from '../utils/dateUtils';
 
 export const UserManagementView: React.FC = () => {
   const {
@@ -152,6 +154,7 @@ export const UserManagementView: React.FC = () => {
   const [editingExpense, setEditingExpense] = useState<OperatingExpense | null>(null);
   const [expEditForm, setExpEditForm] = useState({
     date: '',
+    time: '',
     branchId: '',
     category: 'Packaging & Bags' as ExpenseCategory,
     amount: '',
@@ -457,9 +460,22 @@ export const UserManagementView: React.FC = () => {
   // Expense Edit & Delete Handlers (Super Admin)
   // ==========================================
   const handleOpenEditExpense = (exp: OperatingExpense) => {
+    let initialTime = getBangladeshCurrentTimeString();
+    if (exp.time) {
+      const match = exp.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = match[2];
+        const ampm = match[3]?.toUpperCase();
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        initialTime = `${h.toString().padStart(2, '0')}:${m}`;
+      }
+    }
     setEditingExpense(exp);
     setExpEditForm({
       date: exp.date,
+      time: initialTime,
       branchId: exp.branchId,
       category: exp.category,
       amount: exp.amount.toString(),
@@ -479,6 +495,7 @@ export const UserManagementView: React.FC = () => {
     }
     const res = updateExpense(editingExpense.id, {
       date: expEditForm.date,
+      time: expEditForm.time,
       branchId: expEditForm.branchId,
       category: expEditForm.category,
       amount: amountNum,
@@ -1484,7 +1501,13 @@ export const UserManagementView: React.FC = () => {
                         filteredSuperAdminExpenses.map((exp) => (
                           <tr key={exp.id} className="hover:bg-slate-50/70 transition-colors">
                             <td className="py-3 px-4 font-bold text-slate-900 font-mono">{exp.voucherNo}</td>
-                            <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{exp.date}</td>
+                            <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                              <div>{exp.date}</div>
+                              <div className="flex items-center text-[10px] text-slate-400 mt-0.5">
+                                <Clock className="w-3 h-3 mr-1 text-slate-400 inline" />
+                                <span>{formatSaleTime(exp)}</span>
+                              </div>
+                            </td>
                             <td className="py-3 px-4 font-medium text-slate-700">{exp.branchName}</td>
                             <td className="py-3 px-4">
                               <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
@@ -2034,7 +2057,7 @@ export const UserManagementView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveEditExpense} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">Expense Date *</label>
                   <input
@@ -2042,6 +2065,17 @@ export const UserManagementView: React.FC = () => {
                     required
                     value={expEditForm.date}
                     onChange={(e) => setExpEditForm({ ...expEditForm, date: e.target.value })}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={expEditForm.time}
+                    onChange={(e) => setExpEditForm({ ...expEditForm, time: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>

@@ -118,6 +118,7 @@ export interface StockInTransaction {
   id: string;
   referenceNo: string;
   date: string;
+  time?: string;
   branchId: string;
   branchName: string;
   supplierName?: string;
@@ -146,6 +147,7 @@ export interface StockOutTransaction {
   id: string;
   referenceNo: string;
   date: string;
+  time?: string;
   branchId: string;
   branchName: string;
   reason: StockOutReason;
@@ -243,6 +245,7 @@ export interface BranchTransfer {
   id: string;
   transferNo: string;
   date: string;
+  time?: string;
   sourceBranchId: string;
   sourceBranchName: string;
   destinationBranchId: string;
@@ -271,6 +274,7 @@ export interface BranchOpeningBalance {
   branchId: string;
   branchName: string;
   date: string; // YYYY-MM-DD
+  time?: string;
   openingCashAmount: number;
   openingBankAmount: number;
   notes?: string;
@@ -295,6 +299,7 @@ export interface OperatingExpense {
   id: string;
   voucherNo: string;
   date: string;
+  time?: string;
   branchId: string;
   branchName: string;
   category: ExpenseCategory;

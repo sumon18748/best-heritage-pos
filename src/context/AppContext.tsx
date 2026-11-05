@@ -139,6 +139,7 @@ interface AppContextType {
 
   createStockIn: (data: {
     date: string;
+    time?: string;
     branchId: string;
     supplierName?: string;
     supplierInvoiceNo?: string;
@@ -147,6 +148,7 @@ interface AppContextType {
   }) => { success: boolean; message: string; transaction?: StockInTransaction };
   updateStockIn: (stockInId: string, data: {
     date?: string;
+    time?: string;
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
@@ -156,6 +158,7 @@ interface AppContextType {
 
   createStockOut: (data: {
     date: string;
+    time?: string;
     branchId: string;
     reason: StockOutReason;
     referenceDocNo?: string;
@@ -164,6 +167,7 @@ interface AppContextType {
   }) => { success: boolean; message: string; transaction?: StockOutTransaction };
   updateStockOut: (stockOutId: string, data: {
     date?: string;
+    time?: string;
     reason?: StockOutReason;
     referenceDocNo?: string;
     remarks?: string;
@@ -215,6 +219,7 @@ interface AppContextType {
 
   createTransfer: (data: {
     date: string;
+    time?: string;
     sourceBranchId: string;
     destinationBranchId: string;
     productId: string;
@@ -228,6 +233,7 @@ interface AppContextType {
   recordOpeningBalance: (data: {
     branchId: string;
     date: string;
+    time?: string;
     openingCashAmount: number;
     openingBankAmount: number;
     notes?: string;
@@ -236,6 +242,7 @@ interface AppContextType {
   addExpense: (data: {
     branchId: string;
     date: string;
+    time?: string;
     category: ExpenseCategory;
     amount: number;
     paymentSource: ExpensePaymentSource;
@@ -1401,6 +1408,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Stock In (Automatic Stock Increase + Movements)
   const createStockIn = (data: {
     date: string;
+    time?: string;
     branchId: string;
     supplierName?: string;
     supplierInvoiceNo?: string;
@@ -1449,10 +1457,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
+    const stockInDateStr = data.date || getBangladeshTodayDateString();
+    let createdAtIso = new Date().toISOString();
+    if (data.time) {
+      const timeParts = data.time.split(':');
+      const hh = timeParts[0]?.padStart(2, '0') || '00';
+      const mm = timeParts[1]?.padStart(2, '0') || '00';
+      const ss = timeParts[2]?.padStart(2, '0') || '00';
+      const dt = new Date(`${stockInDateStr}T${hh}:${mm}:${ss}+06:00`);
+      if (!isNaN(dt.getTime())) createdAtIso = dt.toISOString();
+    }
+    const formattedTime = data.time ? formatTime12Hour(data.time) : getBangladeshTimeString();
+
     const newTx: StockInTransaction = {
       id: `stk_in_${Date.now()}`,
       referenceNo: refNo,
       date: data.date,
+      time: formattedTime,
       branchId: data.branchId,
       branchName: branch.name,
       supplierName: data.supplierName || 'General Supplier',
@@ -1463,7 +1484,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalPurchaseCost: Number(totalPurchaseCost.toFixed(2)),
       createdByUserId: currentUser.id,
       createdByName: currentUser.name,
-      createdAt: new Date().toISOString(),
+      createdAt: createdAtIso,
     };
 
     const movementsToAdd: StockMovement[] = [];
@@ -1605,6 +1626,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Super Admin: Update Stock In
   const updateStockIn = (stockInId: string, data: {
     date?: string;
+    time?: string;
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
@@ -1715,6 +1737,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedTx: StockInTransaction = {
       ...tx,
       date: data.date || tx.date,
+      time: data.time !== undefined ? formatTime12Hour(data.time) : tx.time,
       supplierName: data.supplierName !== undefined ? data.supplierName : tx.supplierName,
       supplierInvoiceNo: data.supplierInvoiceNo !== undefined ? data.supplierInvoiceNo : tx.supplierInvoiceNo,
       remarks: data.remarks !== undefined ? data.remarks : tx.remarks,
@@ -1814,6 +1837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Stock Out (With validation against available stock)
   const createStockOut = (data: {
     date: string;
+    time?: string;
     branchId: string;
     reason: StockOutReason;
     referenceDocNo?: string;
@@ -1866,10 +1890,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
+    const stockOutDateStr = data.date || getBangladeshTodayDateString();
+    let createdAtIso = new Date().toISOString();
+    if (data.time) {
+      const timeParts = data.time.split(':');
+      const hh = timeParts[0]?.padStart(2, '0') || '00';
+      const mm = timeParts[1]?.padStart(2, '0') || '00';
+      const ss = timeParts[2]?.padStart(2, '0') || '00';
+      const dt = new Date(`${stockOutDateStr}T${hh}:${mm}:${ss}+06:00`);
+      if (!isNaN(dt.getTime())) createdAtIso = dt.toISOString();
+    }
+    const formattedTime = data.time ? formatTime12Hour(data.time) : getBangladeshTimeString();
+
     const newTx: StockOutTransaction = {
       id: `stk_out_${Date.now()}`,
       referenceNo: refNo,
       date: data.date,
+      time: formattedTime,
       branchId: data.branchId,
       branchName: branch.name,
       reason: data.reason,
@@ -1879,7 +1916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalQuantity,
       createdByUserId: currentUser.id,
       createdByName: currentUser.name,
-      createdAt: new Date().toISOString(),
+      createdAt: createdAtIso,
     };
 
     const movementsToAdd: StockMovement[] = [];
@@ -1939,6 +1976,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Super Admin: Update Stock Out
   const updateStockOut = (stockOutId: string, data: {
     date?: string;
+    time?: string;
     reason?: StockOutReason;
     referenceDocNo?: string;
     remarks?: string;
@@ -2023,6 +2061,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedTx: StockOutTransaction = {
       ...tx,
       date: data.date || tx.date,
+      time: data.time !== undefined ? formatTime12Hour(data.time) : tx.time,
       reason: data.reason || tx.reason,
       referenceDocNo: data.referenceDocNo !== undefined ? data.referenceDocNo : tx.referenceDocNo,
       remarks: data.remarks !== undefined ? data.remarks : tx.remarks,
@@ -2848,6 +2887,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Branch Transfer Workflow
   const createTransfer = (data: {
     date: string;
+    time?: string;
     sourceBranchId: string;
     destinationBranchId: string;
     productId: string;
@@ -2890,10 +2930,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unitPurchaseCost = prod.purchasePrice;
     const totalTransferCost = Number((data.quantity * unitPurchaseCost).toFixed(2));
 
+    const trfDateStr = data.date || getBangladeshTodayDateString();
+    let createdAtIso = new Date().toISOString();
+    if (data.time) {
+      const timeParts = data.time.split(':');
+      const hh = timeParts[0]?.padStart(2, '0') || '00';
+      const mm = timeParts[1]?.padStart(2, '0') || '00';
+      const ss = timeParts[2]?.padStart(2, '0') || '00';
+      const dt = new Date(`${trfDateStr}T${hh}:${mm}:${ss}+06:00`);
+      if (!isNaN(dt.getTime())) createdAtIso = dt.toISOString();
+    }
+    const formattedTime = data.time ? formatTime12Hour(data.time) : getBangladeshTimeString();
+
     const newTransfer: BranchTransfer = {
       id: `trf_${Date.now()}`,
       transferNo,
       date: data.date,
+      time: formattedTime,
       sourceBranchId: data.sourceBranchId,
       sourceBranchName: sourceBranch.name,
       destinationBranchId: data.destinationBranchId,
@@ -2908,8 +2961,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'Dispatched', // Automatically deducts from source branch upon dispatch
       notes: data.notes || '',
       dispatchedBy: currentUser.name,
-      dispatchedAt: new Date().toLocaleString(),
-      createdAt: new Date().toLocaleString(),
+      dispatchedAt: createdAtIso,
+      createdAt: createdAtIso,
     };
 
     // Decrement source branch stock immediately
@@ -3117,6 +3170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const recordOpeningBalance = (data: {
     branchId: string;
     date: string;
+    time?: string;
     openingCashAmount: number;
     openingBankAmount: number;
     notes?: string;
@@ -3124,17 +3178,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const branch = branches.find((b) => b.id === data.branchId);
     if (!branch) return { success: false, message: 'Invalid branch.' };
 
+    const obDateStr = data.date || getBangladeshTodayDateString();
+    let createdAtIso = new Date().toISOString();
+    if (data.time) {
+      const timeParts = data.time.split(':');
+      const hh = timeParts[0]?.padStart(2, '0') || '00';
+      const mm = timeParts[1]?.padStart(2, '0') || '00';
+      const ss = timeParts[2]?.padStart(2, '0') || '00';
+      const dt = new Date(`${obDateStr}T${hh}:${mm}:${ss}+06:00`);
+      if (!isNaN(dt.getTime())) createdAtIso = dt.toISOString();
+    }
+    const formattedTime = data.time ? formatTime12Hour(data.time) : getBangladeshTimeString();
+
     const newRec: BranchOpeningBalance = {
       id: `ob_${Date.now()}`,
       branchId: data.branchId,
       branchName: branch.name,
       date: data.date,
+      time: formattedTime,
       openingCashAmount: Number(data.openingCashAmount) || 0,
       openingBankAmount: Number(data.openingBankAmount) || 0,
       notes: data.notes || '',
       setByUserId: currentUser.id,
       setByName: currentUser.name,
-      createdAt: new Date().toISOString(),
+      createdAt: createdAtIso,
     };
 
     setOpeningBalances((prev) => [newRec, ...prev.filter((ob) => !(ob.branchId === data.branchId && ob.date === data.date))]);
@@ -3146,6 +3213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addExpense = (data: {
     branchId: string;
     date: string;
+    time?: string;
     category: ExpenseCategory;
     amount: number;
     paymentSource: ExpensePaymentSource;
@@ -3162,10 +3230,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const voucherNo = `VCH-${getBangladeshDateCompact()}-${Math.floor(100 + Math.random() * 900)}`;
 
+    const expDateStr = data.date || getBangladeshTodayDateString();
+    let createdAtIso = new Date().toISOString();
+    if (data.time) {
+      const timeParts = data.time.split(':');
+      const hh = timeParts[0]?.padStart(2, '0') || '00';
+      const mm = timeParts[1]?.padStart(2, '0') || '00';
+      const ss = timeParts[2]?.padStart(2, '0') || '00';
+      const dt = new Date(`${expDateStr}T${hh}:${mm}:${ss}+06:00`);
+      if (!isNaN(dt.getTime())) createdAtIso = dt.toISOString();
+    }
+    const formattedTime = data.time ? formatTime12Hour(data.time) : getBangladeshTimeString();
+
     const newExp: OperatingExpense = {
       id: `exp_${Date.now()}`,
       voucherNo,
       date: data.date,
+      time: formattedTime,
       branchId: data.branchId,
       branchName: branch.name,
       category: data.category,
@@ -3175,7 +3256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       vendorName: data.vendorName?.trim(),
       recordedByUserId: currentUser.id,
       recordedByName: currentUser.name,
-      createdAt: new Date().toLocaleString(),
+      createdAt: createdAtIso,
     };
 
     setExpenses((prev) => [newExp, ...prev]);
@@ -3204,9 +3285,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (b) branchName = b.name;
     }
 
+    let timeStr = existing.time;
+    if (data.time) {
+      timeStr = formatTime12Hour(data.time);
+    }
+
     const updatedExp: OperatingExpense = {
       ...existing,
       ...data,
+      time: timeStr,
       branchName,
       amount: data.amount !== undefined ? Number(data.amount.toFixed(2)) : existing.amount,
     };

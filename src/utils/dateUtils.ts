@@ -151,6 +151,9 @@ export function formatSaleDateTime(sale: { date?: string; time?: string; created
   return time ? `${sale.date} (${time})` : sale.date;
 }
 
+export const formatEntryTime = formatSaleTime;
+export const formatEntryDateTime = formatSaleDateTime;
+
 /**
  * Returns formatted human-readable date in Bangladesh time (e.g. "Tue, 27 Oct 2026")
  */

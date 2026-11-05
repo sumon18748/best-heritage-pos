@@ -202,7 +202,7 @@ export const ReportsView: React.FC = () => {
     }
 
     case 'stock_in': {
-      reportHeaders = ['Date', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Invoice Ref', 'Items', 'Total Qty', 'Total Cost', 'Recorded By'];
+      reportHeaders = ['Date & Time', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Invoice Ref', 'Items', 'Total Qty', 'Total Cost', 'Recorded By'];
       const filtered = stockIns.filter(
         (stk) =>
           isDateInRange(stk.date) &&
@@ -214,7 +214,7 @@ export const ReportsView: React.FC = () => {
           (filterProductId === 'all' || stk.items.some((i) => i.productId === filterProductId))
       );
       reportRows = filtered.map((tx) => [
-        tx.date,
+        `${tx.date} ${formatSaleTime(tx)}`,
         tx.referenceNo,
         tx.branchName,
         tx.items[0]?.categoryName || 'Mixed',
@@ -236,7 +236,7 @@ export const ReportsView: React.FC = () => {
     }
 
     case 'stock_out': {
-      reportHeaders = ['Date', 'SOUT Ref', 'Branch', 'Category', 'Reason', 'Reference Doc', 'Items Deducted', 'Quantity Deducted', 'Authorized By'];
+      reportHeaders = ['Date & Time', 'SOUT Ref', 'Branch', 'Category', 'Reason', 'Reference Doc', 'Items Deducted', 'Quantity Deducted', 'Authorized By'];
       const filtered = stockOuts.filter(
         (stk) =>
           isDateInRange(stk.date) &&
@@ -248,7 +248,7 @@ export const ReportsView: React.FC = () => {
           (filterProductId === 'all' || stk.items.some((i) => i.productId === filterProductId))
       );
       reportRows = filtered.map((tx) => [
-        tx.date,
+        `${tx.date} ${formatSaleTime(tx)}`,
         tx.referenceNo,
         tx.branchName,
         tx.items[0]?.categoryName || 'General',
@@ -647,7 +647,7 @@ export const ReportsView: React.FC = () => {
     }
 
     case 'transfers': {
-      reportHeaders = ['Transfer No', 'Date', 'From Branch', 'To Branch', 'Category', 'Product', 'Quantity', 'Unit Cost', 'Status', 'Dispatched By', 'Received By'];
+      reportHeaders = ['Transfer No', 'Date & Time', 'From Branch', 'To Branch', 'Category', 'Product', 'Quantity', 'Unit Cost', 'Status', 'Dispatched By', 'Received By'];
 
       const filtered = transfers.filter((t) => {
         if (!isDateInRange(t.date)) return false;
@@ -661,7 +661,7 @@ export const ReportsView: React.FC = () => {
 
       reportRows = filtered.map((t) => [
         t.transferNo,
-        t.date,
+        `${t.date} ${formatSaleTime(t)}`,
         t.sourceBranchName,
         t.destinationBranchName,
         t.categoryName,
@@ -685,7 +685,7 @@ export const ReportsView: React.FC = () => {
     }
 
     case 'cash_expenses': {
-      reportHeaders = ['Date', 'Branch', 'Category', 'Description', 'Payment Source', 'Amount', 'Recorded By', 'Status'];
+      reportHeaders = ['Date & Time', 'Branch', 'Category', 'Description', 'Payment Source', 'Amount', 'Recorded By', 'Status'];
 
       const filtered = expenses.filter((e) => {
         if (!isDateInRange(e.date)) return false;
@@ -694,7 +694,7 @@ export const ReportsView: React.FC = () => {
       });
 
       reportRows = filtered.map((e) => [
-        e.date,
+        `${e.date} ${formatSaleTime(e)}`,
         e.branchName,
         e.category.toUpperCase(),
         e.description,

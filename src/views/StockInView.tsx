@@ -19,12 +19,13 @@ import {
   Flame,
   Pencil,
   AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import { formatCurrencyBDT, calculateStockInCost, isStockableBranch } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName, StockInTransaction } from '../types';
-import { getBangladeshTodayDateString, sortByNewestFirst } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, sortByNewestFirst, getBangladeshCurrentTimeString, formatSaleTime, formatTime12Hour } from '../utils/dateUtils';
 
 interface ItemRow {
   productId: string;
@@ -66,6 +67,7 @@ export const StockInView: React.FC = () => {
   // Super Admin Edit state
   const [stockInToEdit, setStockInToEdit] = useState<StockInTransaction | null>(null);
   const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
   const [editSupplierName, setEditSupplierName] = useState('');
   const [editSupplierInvoiceNo, setEditSupplierInvoiceNo] = useState('');
   const [editRemarks, setEditRemarks] = useState('');
@@ -75,6 +77,7 @@ export const StockInView: React.FC = () => {
   // Form state
   const todayStr = getBangladeshTodayDateString();
   const [formDate, setFormDate] = useState(todayStr);
+  const [formTime, setFormTime] = useState(getBangladeshCurrentTimeString());
   const [formBranchId, setFormBranchId] = useState(
     currentUser.role === 'manager' && currentUser.branchId
       ? currentUser.branchId
@@ -215,6 +218,7 @@ export const StockInView: React.FC = () => {
     try {
       const res = createStockIn({
         date: formDate,
+        time: formTime,
         branchId: formBranchId,
         supplierName: formSupplier.trim() || undefined,
         supplierInvoiceNo: formInvoiceRef.trim() || undefined,
@@ -229,6 +233,7 @@ export const StockInView: React.FC = () => {
           setFormSupplier('');
           setFormInvoiceRef('');
           setFormRemarks('');
+          setFormTime(getBangladeshCurrentTimeString());
         }, 600);
       } else {
         setFormError(res.message);
@@ -253,6 +258,20 @@ export const StockInView: React.FC = () => {
   const openEditStockInModal = (tx: StockInTransaction) => {
     setStockInToEdit(tx);
     setEditDate(tx.date);
+    const existingTime = formatSaleTime(tx);
+    let time24 = '';
+    if (existingTime) {
+      const match = existingTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = match[2];
+        const ampm = match[3]?.toUpperCase();
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        time24 = `${String(h).padStart(2, '0')}:${m}`;
+      }
+    }
+    setEditTime(time24 || getBangladeshCurrentTimeString());
     setEditSupplierName(tx.supplierName || '');
     setEditSupplierInvoiceNo(tx.supplierInvoiceNo || '');
     setEditRemarks(tx.remarks || '');
@@ -273,6 +292,7 @@ export const StockInView: React.FC = () => {
     if (!stockInToEdit) return;
     const res = updateStockIn(stockInToEdit.id, {
       date: editDate,
+      time: editTime,
       supplierName: editSupplierName,
       supplierInvoiceNo: editSupplierInvoiceNo,
       remarks: editRemarks,
@@ -321,6 +341,8 @@ export const StockInView: React.FC = () => {
     : ['Date', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Invoice Ref', 'Items', 'Total Qty', 'Total Selling Value', 'Remarks', 'Recorded By'];
 
   const exportRows = filteredStockIns.map((tx) => {
+    const tStr = formatSaleTime(tx);
+    const dateDisp = tStr ? `${tx.date} ${tStr}` : tx.date;
     const totalSelling = tx.items.reduce((s, it) => s + (it.quantity * (it.sellingPrice || 0)), 0);
     const itemsFormatted = tx.items.map((i) => {
       const costStr = canViewProfit ? ` @ Cost: ${formatCurrencyBDT(i.purchasePrice)}` : '';
@@ -330,7 +352,7 @@ export const StockInView: React.FC = () => {
 
     return canViewProfit
       ? [
-          tx.date,
+          dateDisp,
           tx.referenceNo,
           tx.branchName,
           tx.items[0]?.categoryName || 'General',
@@ -344,7 +366,7 @@ export const StockInView: React.FC = () => {
           tx.createdByName,
         ]
       : [
-          tx.date,
+          dateDisp,
           tx.referenceNo,
           tx.branchName,
           tx.items[0]?.categoryName || 'General',
@@ -397,10 +419,12 @@ export const StockInView: React.FC = () => {
       : ['Date', 'SIN Ref', 'Branch', 'Category', 'Supplier', 'Qty', 'Total Selling Value', 'Recorded By'];
 
     const pdfRows = filteredStockIns.map((tx) => {
+      const tStr = formatSaleTime(tx);
+      const dateDisp = tStr ? `${tx.date} ${tStr}` : tx.date;
       const totalSelling = tx.items.reduce((s, it) => s + (it.quantity * (it.sellingPrice || 0)), 0);
       return canViewProfit
         ? [
-            tx.date,
+            dateDisp,
             tx.referenceNo,
             tx.branchName,
             tx.items[0]?.categoryName || 'General',
@@ -411,7 +435,7 @@ export const StockInView: React.FC = () => {
             tx.createdByName,
           ]
         : [
-            tx.date,
+            dateDisp,
             tx.referenceNo,
             tx.branchName,
             tx.items[0]?.categoryName || 'General',
@@ -601,10 +625,21 @@ export const StockInView: React.FC = () => {
                 <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4">
                     <span className="font-bold text-slate-900 font-mono block">{tx.referenceNo}</span>
-                    <span className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5">
-                      <Calendar className="w-3 h-3" />
-                      <span>{tx.date}</span>
-                    </span>
+                    <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+                      <span className="flex items-center space-x-1">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{tx.date}</span>
+                      </span>
+                      {formatSaleTime(tx) && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span className="flex items-center space-x-1 text-slate-600 font-mono">
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{formatSaleTime(tx)}</span>
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4">
                     <span className="font-medium text-slate-800">{tx.branchName}</span>
@@ -776,15 +811,31 @@ export const StockInView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Stock In Date *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Stock In Date *</span>
+                  </label>
                   <input
                     type="date"
                     required
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none font-medium text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Stock In Time *</span>
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={formTime}
+                    onChange={(e) => setFormTime(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none font-medium text-slate-800"
                   />
                 </div>
                 <div>
@@ -1109,7 +1160,7 @@ export const StockInView: React.FC = () => {
             )}
 
             <form onSubmit={handleSaveEditStockIn} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
                   <input
@@ -1117,6 +1168,16 @@ export const StockInView: React.FC = () => {
                     required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
                     className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

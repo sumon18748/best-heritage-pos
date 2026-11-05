@@ -17,12 +17,13 @@ import {
   ShieldCheck,
   X,
   AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import { ExpenseCategory, ExpensePaymentSource, OperatingExpense } from '../types';
 import { formatCurrencyBDT, calculateCashBankBalances, calculateConsolidatedCashMetrics, BranchCashMetrics } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
-import { getBangladeshTodayDateString } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, getBangladeshCurrentTimeString, formatSaleTime } from '../utils/dateUtils';
 
 export const CashBankExpensesView: React.FC = () => {
   const {
@@ -51,6 +52,7 @@ export const CashBankExpensesView: React.FC = () => {
   const [editingExpense, setEditingExpense] = useState<OperatingExpense | null>(null);
   const [editForm, setEditForm] = useState({
     date: '',
+    time: '',
     branchId: '',
     category: 'Packaging & Bags' as ExpenseCategory,
     amount: '',
@@ -66,6 +68,7 @@ export const CashBankExpensesView: React.FC = () => {
   const [showOpeningBalanceModal, setShowOpeningBalanceModal] = useState(false);
   const [obBranchId, setObBranchId] = useState('');
   const [obDate, setObDate] = useState(getBangladeshTodayDateString());
+  const [obTime, setObTime] = useState(getBangladeshCurrentTimeString());
   const [obCashAmount, setObCashAmount] = useState('');
   const [obBankAmount, setObBankAmount] = useState('');
   const [obNotes, setObNotes] = useState('');
@@ -73,6 +76,7 @@ export const CashBankExpensesView: React.FC = () => {
   // Expense Form
   const [expenseForm, setExpenseForm] = useState({
     date: getBangladeshTodayDateString(),
+    time: getBangladeshCurrentTimeString(),
     branchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
     category: 'Packaging & Bags' as ExpenseCategory,
     amount: '',
@@ -152,6 +156,7 @@ export const CashBankExpensesView: React.FC = () => {
     const defaultBranch = branchId || branches[0]?.id || '';
     setObBranchId(defaultBranch);
     setObDate(getBangladeshTodayDateString());
+    setObTime(getBangladeshCurrentTimeString());
 
     const existingMetric = cashMetrics.byBranch.find((b) => b.branchId === defaultBranch);
     setObCashAmount(existingMetric ? existingMetric.openingCash.toString() : '0');
@@ -172,6 +177,7 @@ export const CashBankExpensesView: React.FC = () => {
     const res = recordOpeningBalance({
       branchId: obBranchId,
       date: obDate,
+      time: obTime,
       openingCashAmount: cashVal,
       openingBankAmount: bankVal,
       notes: obNotes || 'Morning float update',
@@ -195,6 +201,7 @@ export const CashBankExpensesView: React.FC = () => {
 
     const res = addExpense({
       date: expenseForm.date,
+      time: expenseForm.time,
       branchId: expenseForm.branchId,
       category: expenseForm.category,
       amount: amountNum,
@@ -208,6 +215,7 @@ export const CashBankExpensesView: React.FC = () => {
       setShowExpenseModal(false);
       setExpenseForm({
         date: getBangladeshTodayDateString(),
+        time: getBangladeshCurrentTimeString(),
         branchId: currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : (branches[0]?.id || ''),
         category: 'Packaging & Bags',
         amount: '',
@@ -222,9 +230,22 @@ export const CashBankExpensesView: React.FC = () => {
 
   // Super Admin Exclusive: Open Edit Modal
   const handleOpenEdit = (exp: OperatingExpense) => {
+    let initialTime = getBangladeshCurrentTimeString();
+    if (exp.time) {
+      const match = exp.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = match[2];
+        const ampm = match[3]?.toUpperCase();
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        initialTime = `${h.toString().padStart(2, '0')}:${m}`;
+      }
+    }
     setEditingExpense(exp);
     setEditForm({
       date: exp.date,
+      time: initialTime,
       branchId: exp.branchId,
       category: exp.category,
       amount: exp.amount.toString(),
@@ -245,6 +266,7 @@ export const CashBankExpensesView: React.FC = () => {
     }
     const res = updateExpense(editingExpense.id, {
       date: editForm.date,
+      time: editForm.time,
       branchId: editForm.branchId,
       category: editForm.category,
       amount: amountNum,
@@ -274,10 +296,10 @@ export const CashBankExpensesView: React.FC = () => {
 
   // Dual Export Handlers
   const handleExportExcel = () => {
-    const headers = ['Voucher No', 'Date', 'Branch', 'Category', 'Description', 'Vendor', 'Source', 'Amount'];
+    const headers = ['Voucher No', 'Date & Time', 'Branch', 'Category', 'Description', 'Vendor', 'Source', 'Amount'];
     const dataRows = filteredExpenses.map((e) => [
       e.voucherNo,
-      e.date,
+      `${e.date} ${formatSaleTime(e)}`,
       e.branchName,
       e.category,
       e.description,
@@ -301,10 +323,10 @@ export const CashBankExpensesView: React.FC = () => {
   };
 
   const handleExportPdf = () => {
-    const headers = ['Voucher No', 'Date', 'Branch', 'Category', 'Description', 'Source', 'Amount'];
+    const headers = ['Voucher No', 'Date & Time', 'Branch', 'Category', 'Description', 'Source', 'Amount'];
     const dataRows = filteredExpenses.map((e) => [
       e.voucherNo,
-      e.date,
+      `${e.date} ${formatSaleTime(e)}`,
       e.branchName,
       e.category,
       e.description,
@@ -636,7 +658,13 @@ export const CashBankExpensesView: React.FC = () => {
                 filteredExpenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4 font-bold text-slate-800">{exp.voucherNo}</td>
-                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{exp.date}</td>
+                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                      <div>{exp.date}</div>
+                      <div className="flex items-center text-[10px] text-slate-400 mt-0.5">
+                        <Clock className="w-3 h-3 mr-1 text-slate-400 inline" />
+                        <span>{formatSaleTime(exp)}</span>
+                      </div>
+                    </td>
                     <td className="py-3 px-4 font-medium text-slate-700">{exp.branchName}</td>
                     <td className="py-3 px-4">
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
@@ -701,7 +729,7 @@ export const CashBankExpensesView: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateExpense} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">Expense Date</label>
                   <input
@@ -709,6 +737,17 @@ export const CashBankExpensesView: React.FC = () => {
                     required
                     value={expenseForm.date}
                     onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={expenseForm.time}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, time: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none"
                   />
                 </div>
@@ -827,7 +866,7 @@ export const CashBankExpensesView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveEdit} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">Expense Date *</label>
                   <input
@@ -835,6 +874,17 @@ export const CashBankExpensesView: React.FC = () => {
                     required
                     value={editForm.date}
                     onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={editForm.time}
+                    onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
                     className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
@@ -1050,15 +1100,27 @@ export const CashBankExpensesView: React.FC = () => {
                 )}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Date *</label>
-                <input
-                  type="date"
-                  value={obDate}
-                  onChange={(e) => setObDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date *</label>
+                  <input
+                    type="date"
+                    value={obDate}
+                    onChange={(e) => setObDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Time *</label>
+                  <input
+                    type="time"
+                    value={obTime}
+                    onChange={(e) => setObTime(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

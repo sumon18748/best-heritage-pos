@@ -143,6 +143,7 @@ export async function fetchAllCollections() {
           id: si.id,
           referenceNo: si.reference_no,
           date: si.date,
+          time: si.time || (si.created_at ? formatSaleTime({ createdAt: si.created_at, id: si.id }) : undefined),
           branchId: si.branch_id,
           branchName: si.branch_name || '',
           supplierName: si.supplier_name || undefined,
@@ -162,6 +163,7 @@ export async function fetchAllCollections() {
           id: so.id,
           referenceNo: so.reference_no,
           date: so.date,
+          time: so.time || (so.created_at ? formatSaleTime({ createdAt: so.created_at, id: so.id }) : undefined),
           branchId: so.branch_id,
           branchName: so.branch_name || '',
           reason: so.reason,
@@ -211,6 +213,7 @@ export async function fetchAllCollections() {
           id: t.id,
           transferNo: t.transfer_no,
           date: t.date,
+          time: t.time || (t.created_at ? formatSaleTime({ createdAt: t.created_at, id: t.id }) : undefined),
           sourceBranchId: t.source_branch_id,
           sourceBranchName: t.source_branch_name || '',
           destinationBranchId: t.destination_branch_id,
@@ -240,6 +243,7 @@ export async function fetchAllCollections() {
           id: e.id,
           voucherNo: e.voucher_no,
           date: e.date,
+          time: e.time || (e.created_at ? formatSaleTime({ createdAt: e.created_at, id: e.id }) : undefined),
           branchId: e.branch_id,
           branchName: e.branch_name || '',
           category: e.category,
@@ -269,6 +273,7 @@ export async function fetchAllCollections() {
           branchId: ob.branch_id,
           branchName: ob.branch_name || '',
           date: ob.set_date || getBangladeshTodayDateString(),
+          time: ob.time || (ob.created_at ? formatSaleTime({ createdAt: ob.created_at, id: ob.id }) : undefined),
           openingCashAmount: Number(ob.cash_in_hand) || 0,
           openingBankAmount: Number(ob.bank_balance) || 0,
           setByUserId: ob.set_by_user_id || '',
@@ -396,6 +401,7 @@ export async function syncStockInUpsert(si: StockInTransaction) {
       id: si.id,
       reference_no: si.referenceNo,
       date: si.date,
+      time: si.time || null,
       branch_id: si.branchId,
       branch_name: si.branchName,
       supplier_name: si.supplierName || null,
@@ -434,6 +440,7 @@ export async function syncStockOutUpsert(so: StockOutTransaction) {
       id: so.id,
       reference_no: so.referenceNo,
       date: so.date,
+      time: so.time || null,
       branch_id: so.branchId,
       branch_name: so.branchName,
       reason: so.reason,
@@ -520,6 +527,7 @@ export async function syncTransferUpsert(t: BranchTransfer) {
       id: t.id,
       transfer_no: t.transferNo,
       date: t.date,
+      time: t.time || null,
       source_branch_id: t.sourceBranchId,
       source_branch_name: t.sourceBranchName,
       destination_branch_id: t.destinationBranchId,
@@ -539,6 +547,7 @@ export async function syncTransferUpsert(t: BranchTransfer) {
       cancelled_by: t.cancelledBy || null,
       cancelled_at: t.cancelledAt || null,
       cancellation_reason: t.cancellationReason || null,
+      created_at: t.createdAt || new Date().toISOString(),
     }, { onConflict: 'id' });
 
     if (error) {
@@ -555,6 +564,7 @@ export async function syncExpenseUpsert(e: OperatingExpense) {
       id: e.id,
       voucher_no: e.voucherNo,
       date: e.date,
+      time: e.time || null,
       branch_id: e.branchId,
       branch_name: e.branchName,
       category: e.category,
@@ -564,6 +574,7 @@ export async function syncExpenseUpsert(e: OperatingExpense) {
       vendor_name: e.vendorName || null,
       recorded_by_user_id: e.recordedByUserId || null,
       recorded_by_name: e.recordedByName || null,
+      created_at: e.createdAt || new Date().toISOString(),
     }, { onConflict: 'id' });
 
     if (error) {
@@ -699,10 +710,12 @@ export async function syncOpeningBalanceUpsert(ob: BranchOpeningBalance) {
       branch_id: ob.branchId,
       branch_name: ob.branchName,
       set_date: ob.date,
+      time: ob.time || null,
       cash_in_hand: ob.openingCashAmount || 0,
       bank_balance: ob.openingBankAmount || 0,
       set_by_user_id: ob.setByUserId || null,
       set_by_name: ob.setByName || null,
+      created_at: ob.createdAt || new Date().toISOString(),
     }, { onConflict: 'id' });
 
     if (error) {

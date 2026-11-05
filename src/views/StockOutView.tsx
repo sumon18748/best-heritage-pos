@@ -19,11 +19,12 @@ import {
   Pencil,
   Trash2,
   ShoppingCart,
+  Clock,
 } from 'lucide-react';
 import { canStockOut, isStockableBranch } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
-import { getBangladeshTodayDateString, sortByNewestFirst } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, sortByNewestFirst, getBangladeshCurrentTimeString, formatSaleTime, formatTime12Hour } from '../utils/dateUtils';
 
 export interface UnifiedStockOutItem {
   id: string;
@@ -85,6 +86,7 @@ export const StockOutView: React.FC = () => {
   // Super Admin Edit state
   const [stockOutToEdit, setStockOutToEdit] = useState<StockOutTransaction | null>(null);
   const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
   const [editReason, setEditReason] = useState<StockOutReason>('Damaged Product');
   const [editReferenceDoc, setEditReferenceDoc] = useState('');
   const [editRemarks, setEditRemarks] = useState('');
@@ -94,6 +96,7 @@ export const StockOutView: React.FC = () => {
   // Form state
   const todayStr = getBangladeshTodayDateString();
   const [formDate, setFormDate] = useState(todayStr);
+  const [formTime, setFormTime] = useState(getBangladeshCurrentTimeString());
   const [formBranchId, setFormBranchId] = useState(
     currentUser.role === 'manager' && currentUser.branchId
       ? currentUser.branchId
@@ -165,6 +168,7 @@ export const StockOutView: React.FC = () => {
     try {
       const res = createStockOut({
         date: formDate,
+        time: formTime,
         branchId: formBranchId,
         reason: formReason,
         referenceDocNo: formReferenceDoc.trim() || undefined,
@@ -184,6 +188,7 @@ export const StockOutView: React.FC = () => {
           setFormRemarks('');
           setFormReferenceDoc('');
           setFormQuantity('1');
+          setFormTime(getBangladeshCurrentTimeString());
         }, 600);
       } else {
         setFormError(res.message);
@@ -208,6 +213,20 @@ export const StockOutView: React.FC = () => {
   const openEditStockOutModal = (tx: StockOutTransaction) => {
     setStockOutToEdit(tx);
     setEditDate(tx.date);
+    const existingTime = formatSaleTime(tx);
+    let time24 = '';
+    if (existingTime) {
+      const match = existingTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = match[2];
+        const ampm = match[3]?.toUpperCase();
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        time24 = `${String(h).padStart(2, '0')}:${m}`;
+      }
+    }
+    setEditTime(time24 || getBangladeshCurrentTimeString());
     setEditReason(tx.reason);
     setEditReferenceDoc(tx.referenceDocNo || '');
     setEditRemarks(tx.remarks || '');
@@ -225,6 +244,7 @@ export const StockOutView: React.FC = () => {
     }));
     const res = updateStockOut(stockOutToEdit.id, {
       date: editDate,
+      time: editTime,
       reason: editReason,
       referenceDocNo: editReferenceDoc,
       remarks: editRemarks,
@@ -327,18 +347,22 @@ export const StockOutView: React.FC = () => {
     : branches.find((b) => b.id === effectiveBranchId)?.name || 'Selected Branch';
 
   const exportHeaders = ['Date', 'Ref No', 'Branch', 'Category', 'Out Type / Reason', 'Ref Doc / Customer', 'Items Deducted', 'Total Quantity', 'Remarks', 'Authorized By'];
-  const exportRows = filteredStockOuts.map((tx) => [
-    tx.date,
-    tx.referenceNo,
-    tx.branchName,
-    tx.categoryName || 'General',
-    tx.sourceType === 'sale' ? 'Sale (POS)' : tx.reason,
-    tx.referenceDocNo || '—',
-    tx.items.map((i) => `${i.productName} (${i.quantity} units)`).join('; '),
-    tx.totalQuantity,
-    tx.remarks || '—',
-    tx.createdByName,
-  ]);
+  const exportRows = filteredStockOuts.map((tx) => {
+    const tStr = formatSaleTime(tx);
+    const dateDisp = tStr ? `${tx.date} ${tStr}` : tx.date;
+    return [
+      dateDisp,
+      tx.referenceNo,
+      tx.branchName,
+      tx.categoryName || 'General',
+      tx.sourceType === 'sale' ? 'Sale (POS)' : tx.reason,
+      tx.referenceDocNo || '—',
+      tx.items.map((i) => `${i.productName} (${i.quantity} units)`).join('; '),
+      tx.totalQuantity,
+      tx.remarks || '—',
+      tx.createdByName,
+    ];
+  });
 
   const handleExportExcel = () => {
     const totalOutQty = filteredStockOuts.reduce((sum, t) => sum + t.totalQuantity, 0);
@@ -361,16 +385,20 @@ export const StockOutView: React.FC = () => {
     const totalOutQty = filteredStockOuts.reduce((sum, t) => sum + t.totalQuantity, 0);
 
     const pdfHeaders = ['Date', 'Ref No', 'Branch', 'Category', 'Reason', 'Qty Deducted', 'Doc / Remarks', 'Authorized By'];
-    const pdfRows = filteredStockOuts.map((tx) => [
-      tx.date,
-      tx.referenceNo,
-      tx.branchName,
-      tx.categoryName || 'General',
-      tx.sourceType === 'sale' ? 'Sale (POS)' : tx.reason,
-      tx.totalQuantity,
-      tx.remarks || tx.referenceDocNo || '—',
-      tx.createdByName,
-    ]);
+    const pdfRows = filteredStockOuts.map((tx) => {
+      const tStr = formatSaleTime(tx);
+      const dateDisp = tStr ? `${tx.date} ${tStr}` : tx.date;
+      return [
+        dateDisp,
+        tx.referenceNo,
+        tx.branchName,
+        tx.categoryName || 'General',
+        tx.sourceType === 'sale' ? 'Sale (POS)' : tx.reason,
+        tx.totalQuantity,
+        tx.remarks || tx.referenceDocNo || '—',
+        tx.createdByName,
+      ];
+    });
 
     exportReportToPdf({
       reportTitle: 'Stock Out & Deductions Report',
@@ -596,10 +624,21 @@ export const StockOutView: React.FC = () => {
                 <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4">
                     <span className="font-bold text-slate-900 font-mono block">{tx.referenceNo}</span>
-                    <span className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5">
-                      <Calendar className="w-3 h-3" />
-                      <span>{tx.date}</span>
-                    </span>
+                    <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+                      <span className="flex items-center space-x-1">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{tx.date}</span>
+                      </span>
+                      {formatSaleTime(tx) && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span className="flex items-center space-x-1 text-slate-600 font-mono">
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{formatSaleTime(tx)}</span>
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 font-medium text-slate-800">
                     {tx.branchName}
@@ -768,15 +807,31 @@ export const StockOutView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Date *</span>
+                  </label>
                   <input
                     type="date"
                     required
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none font-medium text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Time *</span>
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={formTime}
+                    onChange={(e) => setFormTime(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none font-medium text-slate-800"
                   />
                 </div>
                 <div>
@@ -1013,7 +1068,7 @@ export const StockOutView: React.FC = () => {
             )}
 
             <form onSubmit={handleSaveEditStockOut} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
                   <input
@@ -1021,6 +1076,16 @@ export const StockOutView: React.FC = () => {
                     required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
                     className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
