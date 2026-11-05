@@ -96,11 +96,12 @@ const ProductDetailPage: React.FC<{
               )}
             </div>
             <div className="text-right shrink-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ফুল বোতল মূল্য</span>
               <div className="text-xl font-bold text-emerald-700">
                 {formatCurrencyBDT(product.sellingPrice)}
               </div>
               {product.packageSize && (
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-500 font-medium">
                   {product.packageSize}{' '}
                   {product.packageUnit ||
                     (product.categoryName === 'Perfume Products' ? 'ml' : 'g')}
@@ -135,6 +136,29 @@ const ProductDetailPage: React.FC<{
             )}
           </div>
         </div>
+
+        {/* Decant Selling Prices Card (Perfumes) */}
+        {product.categoryName === 'Perfume Products' && product.decantConfig?.variants && product.decantConfig.variants.length > 0 && (
+          <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 mb-4">
+            <div className="flex items-center space-x-1.5 mb-2.5">
+              <Flame className="w-4 h-4 text-purple-700" />
+              <span className="text-xs font-bold text-purple-950 uppercase tracking-wide">
+                🧪 ডেকেন্ট বিক্রয় মূল্য (Decant Selling Prices)
+              </span>
+              <span className="text-[10px] text-purple-600 ml-auto font-medium">খুচরা ভেঙে বিক্রির মূল্য</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {product.decantConfig.variants.map((v) => (
+                <div key={v.id || v.mlAmount} className="bg-white p-2.5 rounded-xl border border-purple-200 text-center shadow-2xs">
+                  <span className="text-[11px] font-semibold text-slate-500 block mb-0.5">{v.name || `${v.mlAmount} ml`}</span>
+                  <span className="text-sm font-bold text-purple-900 font-mono">
+                    {v.sellingPrice > 0 ? formatCurrencyBDT(v.sellingPrice) : 'মূল্য সেট নেই'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Detail Info Card */}
         {d && d.description ? (
@@ -405,14 +429,24 @@ export const ProductDetailsView: React.FC = () => {
                     </p>
                   )}
 
-                  {/* Price */}
-                  <div className="text-xs font-bold text-emerald-700 mb-3">
-                    {formatCurrencyBDT(prod.sellingPrice)}
-                    {prod.packageSize && (
-                      <span className="text-slate-400 font-normal ml-1">
-                        / {prod.packageSize}
-                        {prod.packageUnit || (prod.categoryName === 'Perfume Products' ? 'ml' : 'g')}
-                      </span>
+                  {/* Price: Full Bottle & Decant */}
+                  <div className="mb-3">
+                    <div className="text-xs font-bold text-emerald-700">
+                      {formatCurrencyBDT(prod.sellingPrice)}
+                      {prod.packageSize && (
+                        <span className="text-slate-400 font-normal ml-1">
+                          (ফুল বোতল / {prod.packageSize} {prod.packageUnit || (prod.categoryName === 'Perfume Products' ? 'ml' : 'g')})
+                        </span>
+                      )}
+                    </div>
+                    {prod.categoryName === 'Perfume Products' && prod.decantConfig?.variants && prod.decantConfig.variants.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {prod.decantConfig.variants.filter((v) => v.sellingPrice > 0).map((v) => (
+                          <span key={v.id || v.mlAmount} className="text-[10px] bg-purple-50 text-purple-800 border border-purple-200 px-1.5 py-0.2 rounded font-mono font-semibold">
+                            {v.mlAmount}ml: ৳{v.sellingPrice}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
 
