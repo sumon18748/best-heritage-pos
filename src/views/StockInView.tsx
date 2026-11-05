@@ -391,7 +391,27 @@ export const StockInView: React.FC = () => {
       const matchesBranch = effectiveBranchId === 'all' || stk.branchId === effectiveBranchId;
       const matchesCategory =
         activeCategoryTab === 'all' ||
-        stk.items.some((i) => i.categoryName === activeCategoryTab);
+        stk.items.some((i) => {
+          if (i.categoryName === activeCategoryTab) return true;
+          const p = products.find((pr) => pr.id === i.productId);
+          if (p && p.categoryName === activeCategoryTab) return true;
+          if (activeCategoryTab === 'Perfume Products' && (
+            (i.categoryName && i.categoryName.toLowerCase().includes('perfume')) ||
+            (p?.categoryName && p.categoryName.toLowerCase().includes('perfume')) ||
+            p?.categoryId === 'cat_perfumes'
+          )) return true;
+          if (activeCategoryTab === 'Food Products' && (
+            (i.categoryName && i.categoryName.toLowerCase().includes('food')) ||
+            (p?.categoryName && p.categoryName.toLowerCase().includes('food')) ||
+            p?.categoryId === 'cat_food'
+          )) return true;
+          if (activeCategoryTab === 'Cosmetic Products' && (
+            (i.categoryName && i.categoryName.toLowerCase().includes('cosmetic')) ||
+            (p?.categoryName && p.categoryName.toLowerCase().includes('cosmetic')) ||
+            p?.categoryId === 'cat_cosmetics'
+          )) return true;
+          return false;
+        });
 
       const matchesSearch =
         stk.referenceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -720,9 +740,22 @@ export const StockInView: React.FC = () => {
                     <span className="font-medium text-slate-800">{tx.branchName}</span>
                   </td>
                   <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
-                      {tx.items[0]?.categoryName || 'General'}
-                    </span>
+                    {(() => {
+                      const firstIt = tx.items[0];
+                      const pr = products.find((p) => p.id === firstIt?.productId);
+                      const catName = pr?.categoryName || firstIt?.categoryName || 'General';
+                      const badgeColor =
+                        catName === 'Perfume Products'
+                          ? 'bg-purple-100 text-purple-800 border-purple-200'
+                          : catName === 'Food Products'
+                          ? 'bg-amber-100 text-amber-800 border-amber-200'
+                          : 'bg-pink-100 text-pink-800 border-pink-200';
+                      return (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor}`}>
+                          {catName.replace(' Products', '')}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="py-3 px-4">
                     <div className="font-medium text-slate-800">{tx.supplierName || '—'}</div>

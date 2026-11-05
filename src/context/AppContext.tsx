@@ -1470,13 +1470,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pkgSize = prod?.packageSize || prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl;
       const pkgUnit = prod?.packageUnit || (prod?.categoryName === 'Perfume Products' ? 'ml' : 'g');
       const totalVolWeight = pkgSize ? `${pkgSize * item.quantity} ${pkgUnit}` : undefined;
+      const prodCategory = prod?.categoryName || (prod?.categoryId === 'cat_perfumes' ? 'Perfume Products' : prod?.categoryId === 'cat_food' ? 'Food Products' : 'Cosmetic Products');
 
       return {
         id: `sii_${Date.now()}_${idx}`,
         productId: item.productId,
         productName: prod?.name || 'Product',
         sku: prod?.sku || 'SKU',
-        categoryName: prod?.categoryName || 'Cosmetic Products',
+        categoryName: prodCategory,
         quantity: item.quantity,
         purchasePrice: item.purchasePrice,
         sellingPrice: item.sellingPrice,
@@ -1760,6 +1761,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedItems = data.items.map((it, idx) => {
         const prod = products.find((p) => p.id === it.productId);
         const itemCost = Number((it.quantity * it.purchasePrice).toFixed(2));
+        const prodCat = prod?.categoryName || (prod?.categoryId === 'cat_perfumes' ? 'Perfume Products' : prod?.categoryId === 'cat_food' ? 'Food Products' : 'Cosmetic Products');
         totalQuantity += it.quantity;
         totalPurchaseCost += itemCost;
         return {
@@ -1767,7 +1769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           productId: it.productId,
           productName: prod?.name || 'Product',
           sku: prod?.sku || 'SKU',
-          categoryName: prod?.categoryName || 'Cosmetic Products',
+          categoryName: prodCat,
           quantity: it.quantity,
           purchasePrice: it.purchasePrice,
           sellingPrice: it.sellingPrice,
