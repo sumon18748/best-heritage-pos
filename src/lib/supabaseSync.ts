@@ -15,7 +15,7 @@ import {
   StockMovement,
   MainCategoryName,
 } from '../types';
-import { getBangladeshTodayDateString } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, formatSaleTime } from '../utils/dateUtils';
 
 // ====================================================================
 // Fetch All Collections from Supabase
@@ -180,6 +180,7 @@ export async function fetchAllCollections() {
           id: s.id,
           invoiceNo: s.invoice_no,
           date: s.date,
+          time: s.time || (s.created_at ? formatSaleTime({ createdAt: s.created_at, id: s.id }) : undefined),
           branchId: s.branch_id,
           branchName: s.branch_name || '',
           customerName: s.customer_name || 'Walk-in Customer',

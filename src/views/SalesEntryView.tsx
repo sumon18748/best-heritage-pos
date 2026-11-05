@@ -17,6 +17,8 @@ import {
   X,
   PackageSearch,
   Tag,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 import {
   calculateSaleItemTotals,
@@ -27,7 +29,7 @@ import {
   isStockableBranch,
 } from '../utils/stockCalculations';
 import { InvoiceModal } from '../components/InvoiceModal';
-import { getBangladeshTodayDateString } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, getBangladeshCurrentTimeString } from '../utils/dateUtils';
 
 interface SalesRow {
   productId: string;
@@ -57,6 +59,7 @@ export const SalesEntryView: React.FC = () => {
 
   const todayStr = getBangladeshTodayDateString();
   const [salesDate, setSalesDate] = useState(todayStr);
+  const [salesTime, setSalesTime] = useState(getBangladeshCurrentTimeString());
   const [branchId, setBranchId] = useState(
     currentUser.role === 'manager' && currentUser.branchId
       ? currentUser.branchId
@@ -325,6 +328,7 @@ export const SalesEntryView: React.FC = () => {
     try {
       const res = createSale({
         date: salesDate,
+        time: salesTime,
         branchId,
         customerName,
         customerPhone,
@@ -350,6 +354,7 @@ export const SalesEntryView: React.FC = () => {
         setDiscountValue('');
         setDiscountType('fixed');
         setNotes('');
+        setSalesTime(getBangladeshCurrentTimeString());
         // ── Reset to EMPTY after sale ──
         setRows([]);
       } else {
@@ -436,15 +441,32 @@ export const SalesEntryView: React.FC = () => {
               <span>1. Customer &amp; Branch Details</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Sales Date *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Sales Date *</span>
+                </label>
                 <input
                   type="date"
                   required
                   value={salesDate}
                   onChange={(e) => setSalesDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none font-medium text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Sales Time *</span>
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={salesTime}
+                  onChange={(e) => setSalesTime(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none font-medium text-slate-800"
                 />
               </div>
 

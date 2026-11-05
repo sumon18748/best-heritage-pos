@@ -52,6 +52,106 @@ export function getBangladeshTimeString(d: Date = new Date()): string {
 }
 
 /**
+ * Returns 24-hour HH:mm time string in Bangladesh time for HTML5 <input type="time" />
+ */
+export function getBangladeshCurrentTimeString(d: Date = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: BANGLADESH_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+    const hour = parts.find((p) => p.type === 'hour')?.value || '12';
+    const minute = parts.find((p) => p.type === 'minute')?.value || '00';
+    return `${hour}:${minute}`;
+  } catch {
+    const offsetMs = 6 * 60 * 60 * 1000;
+    const bd = new Date(d.getTime() + offsetMs);
+    const h = String(bd.getUTCHours()).padStart(2, '0');
+    const m = String(bd.getUTCMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+}
+
+/**
+ * Converts 24h time "HH:mm" to 12h "hh:mm A" (e.g. "14:30" -> "02:30 PM")
+ */
+export function formatTime12Hour(timeStr?: string): string {
+  if (!timeStr) return '';
+  if (timeStr.includes('AM') || timeStr.includes('PM') || timeStr.includes('am') || timeStr.includes('pm')) {
+    return timeStr;
+  }
+  const parts = timeStr.split(':');
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (!isNaN(h) && !isNaN(m)) {
+      const period = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+    }
+  }
+  return timeStr;
+}
+
+/**
+ * Extracts and formats the 12-hour entry time for a transaction record (Sale, Stock, etc.)
+ */
+export function formatSaleTime(sale: { time?: string; createdAt?: string; id?: string }): string {
+  if (sale.time) {
+    return formatTime12Hour(sale.time);
+  }
+
+  if (sale.createdAt) {
+    const d = new Date(sale.createdAt);
+    if (!isNaN(d.getTime())) {
+      try {
+        return d.toLocaleTimeString('en-US', {
+          timeZone: BANGLADESH_TIMEZONE,
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+      } catch {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
+    }
+  }
+
+  if (sale.id) {
+    const match = sale.id.match(/\d{10,13}/);
+    if (match) {
+      const parsed = parseInt(match[0], 10);
+      if (!isNaN(parsed) && parsed > 1000000000) {
+        const d = new Date(parsed);
+        try {
+          return d.toLocaleTimeString('en-US', {
+            timeZone: BANGLADESH_TIMEZONE,
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+        } catch {
+          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Returns formatted Date & Time string, e.g. "2026-11-05 (11:15 AM)" or "2026-11-05 11:15 AM"
+ */
+export function formatSaleDateTime(sale: { date?: string; time?: string; createdAt?: string; id?: string }): string {
+  const time = formatSaleTime(sale);
+  if (!sale.date) return time;
+  return time ? `${sale.date} (${time})` : sale.date;
+}
+
+/**
  * Returns formatted human-readable date in Bangladesh time (e.g. "Tue, 27 Oct 2026")
  */
 export function getBangladeshFullDateString(d: Date = new Date()): string {

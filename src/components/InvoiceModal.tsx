@@ -2,6 +2,7 @@ import React from 'react';
 import { SaleTransaction } from '../types';
 import { X, Printer, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatCurrencyBDT } from '../utils/stockCalculations';
+import { formatSaleTime } from '../utils/dateUtils';
 
 interface InvoiceModalProps {
   sale: SaleTransaction;
@@ -74,7 +75,12 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ sale, onClose }) => 
             <div className="text-right">
               <div className="text-xs uppercase font-bold text-slate-400 tracking-wider">SALES INVOICE</div>
               <div className="text-base font-bold font-mono text-slate-900">{sale.invoiceNo}</div>
-              <div className="text-xs text-slate-500 mt-1">Date: {sale.date}</div>
+              <div className="text-xs text-slate-600 mt-1">
+                <span>Date: <strong className="text-slate-800">{sale.date}</strong></span>
+                {formatSaleTime(sale) && (
+                  <span className="ml-1 text-slate-600 font-mono text-[11px]">({formatSaleTime(sale)})</span>
+                )}
+              </div>
               <div className="text-xs text-slate-500">Method: <strong className="text-slate-800">{sale.paymentMethod}</strong></div>
               {sale.status === 'cancelled' && (
                 <div className="mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
@@ -94,7 +100,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ sale, onClose }) => 
             <div className="text-right">
               <p className="text-[11px] text-slate-400 uppercase font-semibold">Served By:</p>
               <p className="font-semibold text-slate-800">{sale.createdByName}</p>
-              <p className="text-slate-500 text-[11px]">{sale.createdAt}</p>
+              <p className="text-slate-500 text-[11px] font-mono">{sale.date} {formatSaleTime(sale) ? `at ${formatSaleTime(sale)}` : ''}</p>
             </div>
           </div>
 

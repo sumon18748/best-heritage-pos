@@ -25,7 +25,7 @@ import {
   UserPermissions,
 } from '../types';
 import { getDefaultPermissionsForRole, INITIAL_ROLE_PERMISSIONS } from '../utils/permissionUtils';
-import { getBangladeshTodayDateString, getBangladeshDateCompact, sortByNewestFirst } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, getBangladeshDateCompact, sortByNewestFirst, formatTime12Hour, getBangladeshTimeString } from '../utils/dateUtils';
 import {
   INITIAL_USERS,
   INITIAL_BRANCHES,
@@ -173,6 +173,7 @@ interface AppContextType {
 
   createSale: (data: {
     date: string;
+    time?: string;
     branchId: string;
     customerName: string;
     customerPhone?: string;
@@ -195,6 +196,7 @@ interface AppContextType {
     customerPhone?: string;
     paymentMethod?: PaymentMethod;
     date?: string;
+    time?: string;
     notes?: string;
     discountType?: DiscountType;
     discountValue?: number;
@@ -2119,6 +2121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Sales Entry
   const createSale = (data: {
     date: string;
+    time?: string;
     branchId: string;
     customerName: string;
     customerPhone?: string;
@@ -2292,10 +2295,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       discAmount
     );
 
+    const saleDateStr = data.date || getBangladeshTodayDateString();
+    let createdAtIso = new Date().toISOString();
+    if (data.time) {
+      const timeParts = data.time.split(':');
+      const hh = timeParts[0]?.padStart(2, '0') || '00';
+      const mm = timeParts[1]?.padStart(2, '0') || '00';
+      const ss = timeParts[2]?.padStart(2, '0') || '00';
+      const dt = new Date(`${saleDateStr}T${hh}:${mm}:${ss}+06:00`);
+      if (!isNaN(dt.getTime())) {
+        createdAtIso = dt.toISOString();
+      }
+    }
+    const saleTimeFormatted = data.time ? formatTime12Hour(data.time) : getBangladeshTimeString();
+
     const newSale: SaleTransaction = {
       id: `sale_${Date.now()}`,
       invoiceNo,
       date: data.date,
+      time: saleTimeFormatted,
       branchId: data.branchId,
       branchName: branch.name,
       customerName: data.customerName.trim() || 'Walk-in Customer',
@@ -2314,7 +2332,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdByUserId: currentUser.id,
       createdByName: currentUser.name,
       status: 'completed',
-      createdAt: new Date().toISOString(),
+      createdAt: createdAtIso,
     };
 
     const movementsToAdd: StockMovement[] = [];
@@ -2556,6 +2574,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     customerPhone?: string;
     paymentMethod?: PaymentMethod;
     date?: string;
+    time?: string;
     notes?: string;
     discountType?: DiscountType;
     discountValue?: number;
@@ -2677,6 +2696,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerPhone: data.customerPhone !== undefined ? data.customerPhone.trim() : sale.customerPhone,
       paymentMethod: data.paymentMethod || sale.paymentMethod,
       date: data.date || sale.date,
+      time: data.time !== undefined ? formatTime12Hour(data.time) : sale.time,
       notes: data.notes !== undefined ? data.notes : sale.notes,
       items: updatedSaleItems,
       totalQuantitySold,

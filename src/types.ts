@@ -185,6 +185,7 @@ export interface SaleTransaction {
   id: string;
   invoiceNo: string;
   date: string;
+  time?: string;
   branchId: string;
   branchName: string;
   customerName: string;

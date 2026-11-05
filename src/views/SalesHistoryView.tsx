@@ -19,12 +19,13 @@ import {
   ShieldAlert,
   Trash2,
   Pencil,
+  Clock,
 } from 'lucide-react';
 import { formatCurrencyBDT } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { InvoiceModal } from '../components/InvoiceModal';
-import { sortByNewestFirst, getBangladeshTodayDateString } from '../utils/dateUtils';
+import { sortByNewestFirst, getBangladeshTodayDateString, formatSaleTime, getBangladeshCurrentTimeString } from '../utils/dateUtils';
 
 export const SalesHistoryView: React.FC = () => {
   const {
@@ -67,6 +68,7 @@ export const SalesHistoryView: React.FC = () => {
   const [editCustomerPhone, setEditCustomerPhone] = useState('');
   const [editPaymentMethod, setEditPaymentMethod] = useState<'Cash' | 'bKash' | 'Nagad' | 'Bank Transfer' | 'Card'>('Cash');
   const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editDiscountType, setEditDiscountType] = useState<'fixed' | 'percentage'>('fixed');
   const [editDiscountValue, setEditDiscountValue] = useState<number>(0);
@@ -114,10 +116,12 @@ export const SalesHistoryView: React.FC = () => {
     ? ['Date', 'Invoice No', 'Branch', 'Customer', 'Phone', 'Payment', 'Items Details', 'Qty Sold', 'COGS', 'Sales Revenue', 'Gross Profit', 'Status']
     : ['Date', 'Invoice No', 'Branch', 'Customer', 'Phone', 'Payment', 'Items Details', 'Qty Sold', 'Sales Revenue', 'Status'];
 
-  const exportRows = filteredSales.map((s) =>
-    canViewProfit
+  const exportRows = filteredSales.map((s) => {
+    const timeStr = formatSaleTime(s);
+    const dateDisplay = timeStr ? `${s.date} ${timeStr}` : s.date;
+    return canViewProfit
       ? [
-          s.date,
+          dateDisplay,
           s.invoiceNo,
           s.branchName,
           s.customerName,
@@ -131,7 +135,7 @@ export const SalesHistoryView: React.FC = () => {
           s.status.toUpperCase(),
         ]
       : [
-          s.date,
+          dateDisplay,
           s.invoiceNo,
           s.branchName,
           s.customerName,
@@ -141,8 +145,8 @@ export const SalesHistoryView: React.FC = () => {
           s.totalQuantitySold,
           formatCurrencyBDT(s.totalSalesAmount),
           s.status.toUpperCase(),
-        ]
-  );
+        ];
+  });
 
   const summaryStats = canViewProfit
     ? [
@@ -232,6 +236,21 @@ export const SalesHistoryView: React.FC = () => {
     setEditCustomerPhone(sale.customerPhone || '');
     setEditPaymentMethod(sale.paymentMethod);
     setEditDate(sale.date);
+    const existingTime = formatSaleTime(sale);
+    // Convert 12h time back to HH:mm for <input type="time" />
+    let time24 = '';
+    if (existingTime) {
+      const match = existingTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = match[2];
+        const ampm = match[3]?.toUpperCase();
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        time24 = `${String(h).padStart(2, '0')}:${m}`;
+      }
+    }
+    setEditTime(time24 || getBangladeshCurrentTimeString());
     setEditNotes(sale.notes || '');
     setEditDiscountType(sale.discountType || 'fixed');
     setEditDiscountValue(sale.discountValue || 0);
@@ -253,6 +272,7 @@ export const SalesHistoryView: React.FC = () => {
       customerPhone: editCustomerPhone,
       paymentMethod: editPaymentMethod,
       date: editDate,
+      time: editTime,
       notes: editNotes,
       discountType: editDiscountType,
       discountValue: editDiscountValue,
@@ -464,10 +484,21 @@ export const SalesHistoryView: React.FC = () => {
                 <tr key={sale.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4">
                     <span className="font-semibold text-slate-900 font-mono block">{sale.invoiceNo}</span>
-                    <span className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5">
-                      <Calendar className="w-3 h-3" />
-                      <span>{sale.date}</span>
-                    </span>
+                    <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+                      <span className="flex items-center space-x-1">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{sale.date}</span>
+                      </span>
+                      {formatSaleTime(sale) && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span className="flex items-center space-x-1 text-slate-600 font-mono">
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{formatSaleTime(sale)}</span>
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 font-medium text-slate-800">
                     {sale.branchName}
@@ -786,7 +817,7 @@ export const SalesHistoryView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
                   <input
@@ -794,6 +825,16 @@ export const SalesHistoryView: React.FC = () => {
                     required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
                     className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

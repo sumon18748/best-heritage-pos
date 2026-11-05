@@ -21,7 +21,7 @@ import {
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName } from '../types';
-import { getBangladeshTodayDateString } from '../utils/dateUtils';
+import { getBangladeshTodayDateString, formatSaleTime } from '../utils/dateUtils';
 
 type ReportType =
   | 'current_stock'
@@ -289,9 +289,11 @@ export const ReportsView: React.FC = () => {
       reportRows = filtered.map((s) => {
         const sub = s.subtotal ?? s.totalSalesAmount;
         const disc = s.discountAmount ?? 0;
+        const timeStr = formatSaleTime(s);
+        const dateDisplay = timeStr ? `${s.date} ${timeStr}` : s.date;
         if (canViewProfit) {
           return [
-            s.date,
+            dateDisplay,
             s.invoiceNo,
             s.branchName,
             s.customerName,
@@ -305,7 +307,7 @@ export const ReportsView: React.FC = () => {
           ];
         } else {
           return [
-            s.date,
+            dateDisplay,
             s.invoiceNo,
             s.branchName,
             s.customerName,
@@ -615,8 +617,10 @@ export const ReportsView: React.FC = () => {
 
       reportRows = filtered.map((s) => {
         const margin = s.totalSalesAmount > 0 ? ((s.grossProfit / s.totalSalesAmount) * 100).toFixed(1) : '0';
+        const timeStr = formatSaleTime(s);
+        const dateDisplay = timeStr ? `${s.date} ${timeStr}` : s.date;
         return [
-          s.date,
+          dateDisplay,
           s.invoiceNo,
           s.branchName,
           s.items[0]?.categoryName || 'Mixed',
