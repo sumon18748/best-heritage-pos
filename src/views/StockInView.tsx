@@ -179,15 +179,13 @@ export const StockInView: React.FC = () => {
   };
 
   const addRow = () => {
-    const firstProd = categoryProducts[0];
     setRows((prev) => [
       ...prev,
       {
-        productId: firstProd?.id || '',
-        quantity: 10,
-        purchasePrice: firstProd?.purchasePrice || 0,
-        sellingPrice: firstProd?.sellingPrice || 0,
-        decantPrices: buildDecantPrices(firstProd),
+        productId: '',
+        quantity: 1,
+        purchasePrice: 0,
+        sellingPrice: 0,
       },
     ]);
   };
@@ -211,7 +209,7 @@ export const StockInView: React.FC = () => {
         setRows([
           {
             productId: targetProd.id,
-            quantity: 10,
+            quantity: 1,
             purchasePrice: targetProd.purchasePrice || 0,
             sellingPrice: targetProd.sellingPrice || 0,
             decantPrices: buildDecantPrices(targetProd),
