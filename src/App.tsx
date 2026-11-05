@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './views/DashboardView';
 import { ProductsView } from './views/ProductsView';
+import { ProductDetailsView } from './views/ProductDetailsView';
 import { StockInView } from './views/StockInView';
 import { StockOutView } from './views/StockOutView';
 import { SalesEntryView } from './views/SalesEntryView';
@@ -28,8 +29,11 @@ const MainContent: React.FC = () => {
   }
 
   const renderActiveView = () => {
-    // Check permission for active tab
-    const isAllowed = currentUser.role === 'super_admin' || (userPermissions?.allowedTabs && userPermissions.allowedTabs.includes(activeTab));
+    // Check permission for active tab (product-details is accessible by all roles)
+    const isAllowed =
+      currentUser.role === 'super_admin' ||
+      activeTab === 'product-details' ||
+      (userPermissions?.allowedTabs && userPermissions.allowedTabs.includes(activeTab));
 
     if (!isAllowed) {
       return (
@@ -57,6 +61,8 @@ const MainContent: React.FC = () => {
         return <DashboardView />;
       case 'products':
         return <ProductsView />;
+      case 'product-details':
+        return <ProductDetailsView />;
       case 'stock-in':
         return <StockInView />;
       case 'stock-out':

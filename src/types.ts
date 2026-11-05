@@ -61,6 +61,18 @@ export interface DecantConfig {
   variants: DecantVariant[];
 }
 
+export interface ProductDetailInfo {
+  overview?: string; // পরিচিতি ও সংক্ষিপ্ত বিবরণ
+  benefits?: string; // কার্যকারিতা ও উপকারিতা
+  usageInstructions?: string; // ব্যবহারবিধি
+  ingredients?: string; // মূল উপাদান / সুগন্ধি নোট
+  sideEffectsPrecautions?: string; // সতর্কতা ও অপকারিতা
+  suitableFor?: string; // কাদের জন্য প্রযোজ্য
+  storageTips?: string; // সংরক্ষণ পদ্ধতি
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -79,6 +91,7 @@ export interface Product {
   packageUnit?: string; // Unit for package size (e.g. 'ml', 'g', 'kg', 'pcs')
   bottleCapacityMl?: number; // Perfume only: full sealed bottle size (e.g. 100ml). Enables decant selling.
   decantConfig?: DecantConfig; // Legacy — kept for backward compat; use bottleCapacityMl/packageSize going forward
+  productDetails?: ProductDetailInfo; // কার্যকারিতা, ব্যবহারবিধি, উপকারিতা, অপকারিতা ইত্যাদি বিস্তারিত তথ্য
   createdAt: string;
   updatedAt?: string;
 }
@@ -315,6 +328,7 @@ export interface OperatingExpense {
 export type ActiveTab =
   | 'dashboard'
   | 'products'
+  | 'product-details'
   | 'stock-in'
   | 'stock-out'
   | 'sales-entry'

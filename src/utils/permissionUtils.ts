@@ -11,6 +11,7 @@ export interface NavMenuDefinition {
 export const ALL_NAV_MENUS: NavMenuDefinition[] = [
   { id: 'dashboard', label: 'Dashboard', category: 'core', description: 'Business overview, real-time KPI metrics and alerts' },
   { id: 'products', label: 'Product Catalog & Categories', category: 'core', description: 'Master product directory, categories, SKU codes, pricing and stock' },
+  { id: 'product-details', label: 'Product Details (প্রোডাক্ট ডিটেইলস)', category: 'core', description: 'Product usage, benefits, instructions, pros & cons knowledge base' },
   { id: 'stock-in', label: 'Stock In', category: 'operations', description: 'Inward inventory reception from suppliers' },
   { id: 'stock-out', label: 'Stock Out', category: 'operations', description: 'Damage, loss and authorized stock write-offs' },
   { id: 'sales-entry', label: 'Sales Entry (POS)', category: 'operations', description: 'Retail billing checkout terminal & invoice generation' },
@@ -33,6 +34,7 @@ export const getDefaultPermissionsForRole = (role: UserRole): UserPermissions =>
       allowedTabs: [
         'dashboard',
         'products',
+        'product-details',
         'stock-in',
         'stock-out',
         'sales-entry',
@@ -59,6 +61,7 @@ export const getDefaultPermissionsForRole = (role: UserRole): UserPermissions =>
       allowedTabs: [
         'dashboard',
         'products',
+        'product-details',
         'stock-in',
         'stock-out',
         'sales-entry',
@@ -84,6 +87,7 @@ export const getDefaultPermissionsForRole = (role: UserRole): UserPermissions =>
     allowedTabs: [
       'dashboard',
       'products',
+      'product-details',
       'stock-in',
       'stock-out',
       'sales-entry',

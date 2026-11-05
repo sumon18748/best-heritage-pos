@@ -814,7 +814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (currentUser.role !== 'super_admin') {
       const allowed = userPermissions.allowedTabs;
-      if (allowed && allowed.length > 0 && !allowed.includes(activeTab)) {
+      if (allowed && allowed.length > 0 && !allowed.includes(activeTab) && activeTab !== 'product-details') {
         setActiveTab(allowed[0]);
       }
     }

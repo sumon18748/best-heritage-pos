@@ -19,6 +19,7 @@ import {
   ArrowLeftRight,
   Wallet,
   LogOut,
+  BookOpen,
 } from 'lucide-react';
 import { calculateStockAlertStatus, isStockableBranch } from '../utils/stockCalculations';
 
@@ -76,6 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'products', label: 'Product Catalog', icon: Package },
+    { id: 'product-details', label: 'Product Details', icon: BookOpen },
     { id: 'stock-in', label: 'Stock In', icon: ArrowDownToLine },
     { id: 'stock-out', label: 'Stock Out', icon: ArrowUpFromLine },
     { id: 'sales-entry', label: 'Sales Entry (POS)', icon: ShoppingCart },
@@ -136,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
             if (item.requiredRole === 'super_admin') {
               return null;
             }
-            if (userPermissions?.allowedTabs && !userPermissions.allowedTabs.includes(item.id)) {
+            if (item.id !== 'product-details' && userPermissions?.allowedTabs && !userPermissions.allowedTabs.includes(item.id)) {
               return null;
             }
           }

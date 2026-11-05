@@ -116,6 +116,7 @@ export async function fetchAllCollections() {
           packageUnit: p.package_unit || undefined,
           bottleCapacityMl: p.bottle_capacity_ml ? Number(p.bottle_capacity_ml) : undefined,
           decantConfig: p.decant_config || undefined,
+          productDetails: p.decant_config?.productDetails || undefined,
           createdAt: p.created_at || new Date().toISOString(),
         }))
       : null;
@@ -348,7 +349,10 @@ export async function syncProductUpsert(p: Product) {
       bottle_capacity_ml: p.bottleCapacityMl || null,
       is_decant_allowed: p.decantConfig?.isDecantable ?? false,
       decant_variants: p.decantConfig?.variants || null,
-      decant_config: p.decantConfig || null,
+      decant_config: {
+        ...(p.decantConfig || {}),
+        productDetails: p.productDetails || (p.decantConfig as any)?.productDetails || null,
+      },
     }, { onConflict: 'id' });
 
     if (error) {
