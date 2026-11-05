@@ -49,7 +49,6 @@ export const SalesEntryView: React.FC = () => {
     createSale,
     currentUser,
     canViewProfit,
-    selectedCategoryName,
   } = useApp();
 
   const stockableBranches = React.useMemo(
@@ -71,10 +70,6 @@ export const SalesEntryView: React.FC = () => {
   const [discountType, setDiscountType] = useState<DiscountType>('fixed');
   const [discountValue, setDiscountValue] = useState<number | ''>('');
   const [notes, setNotes] = useState('');
-
-  // POS Category filter (for quick catalog carousel)
-  const [posCategory, setPosCategory] = useState<string>(selectedCategoryName || 'all');
-  const [catalogSearch, setCatalogSearch] = useState('');
 
   // ── Bill rows: starts EMPTY ──
   const [rows, setRows] = useState<SalesRow[]>([]);
@@ -100,23 +95,6 @@ export const SalesEntryView: React.FC = () => {
       branchStocks.find((s) => s.branchId === branchId && s.productId === prodId)?.openBottleMlRemaining || 0
     );
   };
-
-  // Filter products for quick catalog carousel
-  const filteredCatalogProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (p.status === 'inactive') return false;
-      if (posCategory !== 'all' && p.categoryName !== posCategory) return false;
-      if (catalogSearch.trim()) {
-        const q = catalogSearch.toLowerCase();
-        const matches =
-          p.name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q) ||
-          (p.barcode && p.barcode.toLowerCase().includes(q));
-        if (!matches) return false;
-      }
-      return true;
-    });
-  }, [products, posCategory, catalogSearch]);
 
   // Filter products for the Add-Item Modal
   const filteredModalProducts = useMemo(() => {
@@ -373,63 +351,6 @@ export const SalesEntryView: React.FC = () => {
           <span>{errorMessage}</span>
         </div>
       )}
-
-      {/* POS Top Category Quick-Tabs */}
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <div className="flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto no-scrollbar w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setPosCategory('all')}
-            className={`shrink-0 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              posCategory === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            All
-          </button>
-          <button
-            type="button"
-            onClick={() => setPosCategory('Cosmetic Products')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all ${
-              posCategory === 'Cosmetic Products' ? 'bg-pink-600 text-white shadow-xs' : 'text-pink-700 hover:bg-pink-50'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Cosmetics</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setPosCategory('Food Products')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all ${
-              posCategory === 'Food Products' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-800 hover:bg-amber-50'
-            }`}
-          >
-            <Apple className="w-3.5 h-3.5" />
-            <span>Foods</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setPosCategory('Perfume Products')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all ${
-              posCategory === 'Perfume Products' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-800 hover:bg-purple-50'
-            }`}
-          >
-            <Flame className="w-3.5 h-3.5" />
-            <span>Perfumes</span>
-          </button>
-        </div>
-
-        {/* Catalog search */}
-        <div className="relative w-full sm:min-w-[240px] sm:w-auto">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2" />
-          <input
-            type="text"
-            placeholder="Quick search product catalog..."
-            value={catalogSearch}
-            onChange={(e) => setCatalogSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-          />
-        </div>
-      </div>
 
       {/* Main Billing Form Grid */}
       <form onSubmit={handleCompleteSale} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
