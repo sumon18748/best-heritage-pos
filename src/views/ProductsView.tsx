@@ -241,7 +241,19 @@ export const ProductsView: React.FC = () => {
     const pkgUnit = formPackageUnit || (targetCategory?.name === 'Perfume Products' ? 'ml' : 'g');
 
     const validVariants = (targetCategory?.name === 'Perfume Products')
-      ? formDecantVariants.filter((v) => v.mlAmount > 0).sort((a, b) => a.mlAmount - b.mlAmount)
+      ? formDecantVariants
+          .filter((v) => v.mlAmount > 0)
+          .sort((a, b) => a.mlAmount - b.mlAmount)
+          .map((v) => {
+            const existingPrice =
+              editingProduct?.decantConfig?.variants?.find((ev) => ev.mlAmount === v.mlAmount)?.sellingPrice || 0;
+            return {
+              id: v.id || `dv_${v.mlAmount}ml`,
+              name: `${v.mlAmount} ml`,
+              mlAmount: v.mlAmount,
+              sellingPrice: existingPrice,
+            };
+          })
       : [];
 
     const computedDecantConfig: DecantConfig | undefined = (targetCategory?.name === 'Perfume Products')
@@ -925,7 +937,7 @@ export const ProductsView: React.FC = () => {
                       <div className="flex items-center space-x-1.5">
                         <Flame className="w-4 h-4 text-purple-700" />
                         <label className="text-xs font-bold text-purple-950">
-                          🧪 ডেকেন্ট ভ্যারিয়েন্ট ও বিক্রয় মূল্য (Decant Variants)
+                          🧪 ডেকেন্ট বিক্রির সাইজসমূহ (Decant Sizes)
                         </label>
                       </div>
                       <button
@@ -944,59 +956,43 @@ export const ProductsView: React.FC = () => {
                       </button>
                     </div>
                     <p className="text-[10px] text-purple-600">
-                      সুপার অ্যাডমিন: এখানে ডেকেন্ট সাইজ ও দাম এডিট, যোগ বা ডিলিট করতে পারেন। স্টক-ইন ও সেল এন্ট্রিতে এই সাইজগুলো স্বয়ংক্রিয়ভাবে ব্যবহৃত হবে।
+                      সুপার অ্যাডমিন: এখান থেকে শুধু বিক্রির ডেকেন্ট সাইজগুলো (ml) যোগ বা রিমুভ করুন। এখানে কোনো বিক্রয় মূল্য থাকবে না—মূল্য স্টক ইন-এর সময় নির্ধারণ করা হবে।
                     </p>
-                    <div className="space-y-1.5 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-2">
                       {formDecantVariants.map((v, vIdx) => (
-                        <div key={v.id || vIdx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-purple-200">
-                          <div className="w-24">
-                            <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">সাইজ (ml)</label>
-                            <input
-                              type="number"
-                              min="0.5"
-                              step="0.5"
-                              value={v.mlAmount || ''}
-                              onChange={(e) => {
-                                const ml = parseFloat(e.target.value) || 0;
-                                const updated = [...formDecantVariants];
-                                updated[vIdx] = { ...updated[vIdx], mlAmount: ml, name: `${ml} ml` };
-                                setFormDecantVariants(updated);
-                              }}
-                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded text-center font-bold text-purple-900 focus:outline-none"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">বিক্রয় মূল্য (Tk)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              placeholder="0"
-                              value={v.sellingPrice === 0 ? '' : v.sellingPrice}
-                              onChange={(e) => {
-                                const price = Math.max(0, parseFloat(e.target.value) || 0);
-                                const updated = [...formDecantVariants];
-                                updated[vIdx] = { ...updated[vIdx], sellingPrice: price };
-                                setFormDecantVariants(updated);
-                              }}
-                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded font-bold text-slate-800 focus:outline-none"
-                            />
-                          </div>
+                        <div
+                          key={v.id || vIdx}
+                          className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-purple-200 shadow-xs"
+                        >
+                          <input
+                            type="number"
+                            min="0.5"
+                            step="0.5"
+                            value={v.mlAmount || ''}
+                            onChange={(e) => {
+                              const ml = parseFloat(e.target.value) || 0;
+                              const updated = [...formDecantVariants];
+                              updated[vIdx] = { ...updated[vIdx], mlAmount: ml, name: `${ml} ml` };
+                              setFormDecantVariants(updated);
+                            }}
+                            className="w-16 px-1.5 py-0.5 text-xs border border-purple-200 rounded text-center font-bold text-purple-900 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                          />
+                          <span className="text-xs font-bold text-purple-700">ml</span>
                           <button
                             type="button"
                             onClick={() => {
                               setFormDecantVariants(formDecantVariants.filter((_, i) => i !== vIdx));
                             }}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded mt-3 cursor-pointer"
-                            title="ভ্যারিয়েন্ট মুছুন"
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
+                            title="রিমুভ করুন"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))}
                       {formDecantVariants.length === 0 && (
-                        <p className="text-[11px] text-slate-400 italic text-center py-2">
-                          কোনো ডেকেন্ট ভ্যারিয়েন্ট নেই। '+ সাইজ যোগ করুন' ক্লিক করুন।
+                        <p className="text-[11px] text-slate-400 italic text-center py-2 w-full">
+                          কোনো ডেকেন্ট সাইজ নেই। '+ সাইজ যোগ করুন' ক্লিক করে সাইজ অ্যাড করুন।
                         </p>
                       )}
                     </div>
