@@ -137,39 +137,12 @@ const ProductDetailPage: React.FC<{
         </div>
 
         {/* Detail Info Card */}
-        {d &&
-        (d.description ||
-          d.usageInstructions ||
-          d.suitableFor ||
-          d.fragrance ||
-          d.otherInfo) ? (
+        {d && d.description ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
             <InfoRow
               label="বিবরণ (Description)"
               value={d.description}
               icon={<FileText className="w-4 h-4" />}
-            />
-            <InfoRow
-              label="ব্যবহারবিধি (How to Use)"
-              value={d.usageInstructions}
-              icon={<Info className="w-4 h-4" />}
-            />
-            <InfoRow
-              label="কাদের জন্য উপযুক্ত (Suitable For)"
-              value={d.suitableFor}
-              icon={<Sparkles className="w-4 h-4" />}
-            />
-            {product.categoryName === 'Perfume Products' && (
-              <InfoRow
-                label="সুবাস / ঘ্রাণ বিবরণ (Fragrance Notes)"
-                value={d.fragrance}
-                icon={<Flame className="w-4 h-4" />}
-              />
-            )}
-            <InfoRow
-              label="অন্যান্য তথ্য (Other Info)"
-              value={d.otherInfo}
-              icon={<BookOpen className="w-4 h-4" />}
             />
 
             {d.lastUpdated && (
@@ -208,7 +181,7 @@ export const ProductDetailsView: React.FC = () => {
   const [saveFeedback, setSaveFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const isSuperAdmin = currentUser.role === 'super_admin';
-  const canModify = isSuperAdmin || canEdit || currentUser.role === 'admin';
+  const canModify = isSuperAdmin || canEdit || currentUser.role === 'admin' || currentUser.role === 'manager';
 
   const filteredProducts = useMemo(() => {
     return products
@@ -552,35 +525,6 @@ const EditModal: React.FC<{
             'এই পণ্যটি সম্পর্কে সংক্ষেপে লিখুন যা ম্যানেজার কাস্টমারকে বলতে পারবেন...',
             true,
             3
-          )}
-
-          {field(
-            '🧴 ব্যবহারবিধি (How to Use)',
-            'usageInstructions',
-            'কীভাবে ব্যবহার করতে হয়, কতটুকু ব্যবহার করতে হয়...',
-            true,
-            2
-          )}
-
-          {field(
-            '🎯 কাদের জন্য উপযুক্ত (Suitable For)',
-            'suitableFor',
-            'e.g. সকলের জন্য, শুষ্ক ত্বকের জন্য, পুরুষ ও মহিলা উভয়ের জন্য'
-          )}
-
-          {product.categoryName === 'Perfume Products' &&
-            field(
-              '🌸 সুবাস / ঘ্রাণ বিবরণ (Fragrance Notes)',
-              'fragrance',
-              'e.g. Top: Bergamot, Heart: Rose, Base: Oud & Sandalwood'
-            )}
-
-          {field(
-            '📌 অন্যান্য তথ্য (Other Info)',
-            'otherInfo',
-            'যেকোনো অতিরিক্ত গুরুত্বপূর্ণ তথ্য...',
-            true,
-            2
           )}
         </div>
 

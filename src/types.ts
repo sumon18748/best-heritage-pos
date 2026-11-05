@@ -65,10 +65,6 @@ export interface ProductDetailInfo {
   countryOfOrigin?: string;  // উৎপত্তির দেশ (e.g. France, UAE, Bangladesh)
   brand?: string;             // ব্র্যান্ড / কোম্পানি
   description?: string;       // সংক্ষিপ্ত বিবরণ (যা কাস্টমারকে বলা যায়)
-  usageInstructions?: string; // ব্যবহারবিধি
-  suitableFor?: string;       // কাদের জন্য উপযুক্ত
-  fragrance?: string;         // ঘ্রাণ বিবরণ / সুবাস নোটস (পারফিউমের জন্য)
-  otherInfo?: string;         // অন্যান্য গুরুত্বপূর্ণ তথ্য
   lastUpdated?: string;
   updatedBy?: string;
 }
