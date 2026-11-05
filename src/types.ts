@@ -62,13 +62,13 @@ export interface DecantConfig {
 }
 
 export interface ProductDetailInfo {
-  overview?: string; // পরিচিতি ও সংক্ষিপ্ত বিবরণ
-  benefits?: string; // কার্যকারিতা ও উপকারিতা
+  countryOfOrigin?: string;  // উৎপত্তির দেশ (e.g. France, UAE, Bangladesh)
+  brand?: string;             // ব্র্যান্ড / কোম্পানি
+  description?: string;       // সংক্ষিপ্ত বিবরণ (যা কাস্টমারকে বলা যায়)
   usageInstructions?: string; // ব্যবহারবিধি
-  ingredients?: string; // মূল উপাদান / সুগন্ধি নোট
-  sideEffectsPrecautions?: string; // সতর্কতা ও অপকারিতা
-  suitableFor?: string; // কাদের জন্য প্রযোজ্য
-  storageTips?: string; // সংরক্ষণ পদ্ধতি
+  suitableFor?: string;       // কাদের জন্য উপযুক্ত
+  fragrance?: string;         // ঘ্রাণ বিবরণ / সুবাস নোটস (পারফিউমের জন্য)
+  otherInfo?: string;         // অন্যান্য গুরুত্বপূর্ণ তথ্য
   lastUpdated?: string;
   updatedBy?: string;
 }
