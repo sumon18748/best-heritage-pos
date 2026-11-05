@@ -94,6 +94,10 @@ interface AppContextType {
   selectedCategoryName: string | null;
   setSelectedCategoryName: (cat: string | null) => void;
 
+  // Direct Stock In transition
+  pendingStockInProductId: string | null;
+  setPendingStockInProductId: (id: string | null) => void;
+
   users: User[];
   branches: Branch[];
   categories: Category[];
@@ -298,6 +302,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [pendingStockInProductId, setPendingStockInProductId] = useState<string | null>(null);
 
   const [selectedBranchId, setSelectedBranchIdState] = useState<string>(() => {
     return currentUser.role === 'manager' && currentUser.branchId ? currentUser.branchId : 'all';
@@ -3557,6 +3562,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedBranchId,
         selectedCategoryName,
         setSelectedCategoryName,
+        pendingStockInProductId,
+        setPendingStockInProductId,
         users,
         branches,
         categories,

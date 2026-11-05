@@ -32,6 +32,7 @@ export const StockAlertsView: React.FC = () => {
     selectedBranchId,
     setActiveTab,
     canViewProfit,
+    setPendingStockInProductId,
   } = useApp();
 
   const [activeTabFilter, setActiveTabFilter] = useState<'all_alerts' | 'low_stock' | 'out_of_stock' | 'healthy'>('all_alerts');
@@ -44,10 +45,12 @@ export const StockAlertsView: React.FC = () => {
 
   const effectiveBranchId = isBranchLocked ? currentUser.branchId! : filterBranchId;
 
-  // Build items with alert status across all active products and target branches
-  const targetBranchesForAlerts = effectiveBranchId === 'all'
-    ? branches
-    : branches.filter((b) => b.id === effectiveBranchId);
+  // Build items with alert status across all active products and target branches (stockable retail/warehouse only)
+  const targetBranchesForAlerts = (
+    effectiveBranchId === 'all'
+      ? branches
+      : branches.filter((b) => b.id === effectiveBranchId)
+  ).filter((b) => isStockableBranch(b) && b.isActive);
 
   const allAlertCandidates: Array<{
     id: string;
@@ -515,8 +518,11 @@ export const StockAlertsView: React.FC = () => {
                   )}
                   <td className="py-3 px-4 text-right">
                     <button
-                      onClick={() => setActiveTab('stock-in')}
-                      className="px-2.5 py-1 text-[11px] font-semibold rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors inline-flex items-center space-x-1"
+                      onClick={() => {
+                        setPendingStockInProductId(item.productId);
+                        setActiveTab('stock-in');
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-semibold rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors inline-flex items-center space-x-1 cursor-pointer"
                     >
                       <ArrowDownToLine className="w-3 h-3" />
                       <span>Stock In</span>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   ArrowDownToLine,
@@ -56,6 +56,8 @@ export const StockInView: React.FC = () => {
     selectedBranchId,
     selectedCategoryName,
     canViewProfit,
+    pendingStockInProductId,
+    setPendingStockInProductId,
   } = useApp();
 
   const isSuperAdmin = currentUser.role === 'super_admin';
@@ -93,14 +95,18 @@ export const StockInView: React.FC = () => {
       ? currentUser.branchId
       : (stockableBranches.find((b) => b.id === selectedBranchId)?.id || stockableBranches[0]?.id || '')
   );
-  const [formCategory, setFormCategory] = useState<MainCategoryName>('Cosmetic Products');
+  const [formCategory, setFormCategory] = useState<MainCategoryName | 'all'>('all');
   const [formSupplier, setFormSupplier] = useState('');
   const [formInvoiceRef, setFormInvoiceRef] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
 
-  // Products eligible in selected form category
+  // Products eligible in selected form category (all active products)
   const categoryProducts = useMemo(() => {
-    return products.filter((p) => p.categoryName === formCategory && p.status === 'active');
+    return products.filter((p) => {
+      if (p.status === 'inactive') return false;
+      if (formCategory === 'all') return true;
+      return p.categoryName === formCategory;
+    });
   }, [products, formCategory]);
 
   const [rows, setRows] = useState<ItemRow[]>([
@@ -117,9 +123,13 @@ export const StockInView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // When form category changes, reset product row
-  const handleCategoryChange = (newCat: MainCategoryName) => {
+  const handleCategoryChange = (newCat: MainCategoryName | 'all') => {
     setFormCategory(newCat);
-    const catProds = products.filter((p) => p.categoryName === newCat && p.status === 'active');
+    const catProds = products.filter((p) => {
+      if (p.status === 'inactive') return false;
+      if (newCat === 'all') return true;
+      return p.categoryName === newCat;
+    });
     const firstProd = catProds[0];
     setRows([
       {
@@ -216,18 +226,25 @@ export const StockInView: React.FC = () => {
   );
   const totalQty = rows.reduce((sum, r) => sum + r.quantity, 0);
 
-  const openNewStockIn = (preselectedCategory?: MainCategoryName) => {
-    const cat = preselectedCategory || (activeCategoryTab !== 'all' ? (activeCategoryTab as MainCategoryName) : 'Cosmetic Products');
+  const openNewStockIn = (preselectedCategory?: MainCategoryName | 'all', preselectedProductId?: string) => {
+    const cat = preselectedCategory || (activeCategoryTab !== 'all' ? (activeCategoryTab as MainCategoryName) : 'all');
     setFormCategory(cat);
-    const catProds = products.filter((p) => p.categoryName === cat && p.status === 'active');
-    const firstProd = catProds[0];
+    const catProds = products.filter((p) => {
+      if (p.status === 'inactive') return false;
+      if (cat === 'all') return true;
+      return p.categoryName === cat;
+    });
+    const targetProd = preselectedProductId
+      ? products.find((p) => p.id === preselectedProductId) || catProds[0]
+      : catProds[0];
+
     setRows([
       {
-        productId: firstProd?.id || '',
+        productId: targetProd?.id || '',
         quantity: 10,
-        purchasePrice: firstProd?.purchasePrice || 0,
-        sellingPrice: firstProd?.sellingPrice || 0,
-        decantPrices: buildDecantPrices(firstProd),
+        purchasePrice: targetProd?.purchasePrice || 0,
+        sellingPrice: targetProd?.sellingPrice || 0,
+        decantPrices: buildDecantPrices(targetProd),
       },
     ]);
     const defaultBranch = currentUser.role === 'manager' && currentUser.branchId
@@ -238,6 +255,17 @@ export const StockInView: React.FC = () => {
     setFormSuccess('');
     setIsModalOpen(true);
   };
+
+  // Auto-open stock in modal when redirected from Stock Alerts
+  useEffect(() => {
+    if (pendingStockInProductId) {
+      const prod = products.find((p) => p.id === pendingStockInProductId);
+      if (prod) {
+        openNewStockIn(prod.categoryName as MainCategoryName, prod.id);
+      }
+      setPendingStockInProductId(null);
+    }
+  }, [pendingStockInProductId, products]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -816,7 +844,19 @@ export const StockInView: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
                   Select Main Category for Stock In *
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCategoryChange('all')}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 border transition-all ${
+                      formCategory === 'all'
+                        ? 'bg-slate-900 text-white border-slate-950 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>সকল পণ্য (All)</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => handleCategoryChange('Cosmetic Products')}
@@ -934,7 +974,7 @@ export const StockInView: React.FC = () => {
               <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                    {formCategory} to Add
+                    {formCategory === 'all' ? 'Products' : formCategory} to Add
                   </label>
                   <button
                     type="button"
@@ -963,9 +1003,10 @@ export const StockInView: React.FC = () => {
                             {categoryProducts.map((p) => {
                               const size = p.packageSize || p.bottleCapacityMl || p.decantConfig?.bottleCapacityMl;
                               const unit = p.packageUnit || (p.categoryName === 'Perfume Products' ? 'ml' : 'g');
+                              const catTag = p.categoryName === 'Perfume Products' ? 'Perfume' : p.categoryName === 'Food Products' ? 'Food' : 'Cosmetic';
                               return (
                                 <option key={p.id} value={p.id}>
-                                  {p.name} ({p.sku}){size ? ` [⚖️ ${size} ${unit}]` : ''}
+                                  {p.name} ({p.sku}) [{catTag}]{size ? ` [⚖️ ${size} ${unit}]` : ''}
                                 </option>
                               );
                             })}
@@ -1013,7 +1054,7 @@ export const StockInView: React.FC = () => {
 
                         <div className="w-28">
                           <label className="text-[10px] text-emerald-700 font-bold block mb-0.5">
-                            {formCategory === 'Perfume Products' ? 'Full Bottle Selling (Tk) *' : 'Selling Price (Tk) *'}
+                            {products.find((p) => p.id === row.productId)?.categoryName === 'Perfume Products' ? 'Full Bottle Selling (Tk) *' : 'Selling Price (Tk) *'}
                           </label>
                           <input
                             type="number"
@@ -1123,7 +1164,7 @@ export const StockInView: React.FC = () => {
                   disabled={isSubmitting}
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                 >
-                  {isSubmitting ? 'Recording...' : `Confirm & Stock In (${formCategory.replace(' Products', '')})`}
+                  {isSubmitting ? 'Recording...' : `Confirm & Stock In (${formCategory === 'all' ? 'All Products' : formCategory.replace(' Products', '')})`}
                 </button>
               </div>
             </form>
