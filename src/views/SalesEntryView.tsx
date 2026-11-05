@@ -145,23 +145,31 @@ export const SalesEntryView: React.FC = () => {
     const updated = [...rows];
     const row = updated[index];
     const willBeDecant = !row.isDecant;
+    const prod = products.find((p) => p.id === row.productId);
+    // Auto-select first variant if available
+    const variants = prod?.decantConfig?.variants || [];
+    const firstVariant = variants.length > 0 ? variants[0] : null;
     updated[index] = {
       ...row,
       isDecant: willBeDecant,
       quantity: 1,
-      decantMlAmount: willBeDecant ? (row.decantMlAmount || 10) : undefined,
-      decantVariantName: willBeDecant ? (row.decantMlAmount ? `${row.decantMlAmount}ml` : '10ml') : undefined,
+      decantMlAmount: willBeDecant ? (firstVariant?.mlAmount || row.decantMlAmount || 10) : undefined,
+      decantVariantName: willBeDecant ? (firstVariant?.name || (row.decantMlAmount ? `${row.decantMlAmount}ml` : '10ml')) : undefined,
+      sellingPrice: willBeDecant && firstVariant ? firstVariant.sellingPrice : row.sellingPrice,
     };
     setRows(updated);
   };
 
-  const handleDecantMlChange = (index: number, mlStr: string) => {
-    const ml = Math.max(0, parseFloat(mlStr) || 0);
+  const handleDecantVariantSelect = (index: number, mlStr: string) => {
+    const ml = parseFloat(mlStr) || 0;
     const updated = [...rows];
+    const prod = products.find((p) => p.id === updated[index].productId);
+    const variant = prod?.decantConfig?.variants?.find((v) => v.mlAmount === ml);
     updated[index] = {
       ...updated[index],
       decantMlAmount: ml || undefined,
-      decantVariantName: ml ? `${ml}ml` : 'Decant',
+      decantVariantName: variant?.name || (ml ? `${ml}ml` : 'Decant'),
+      sellingPrice: variant ? variant.sellingPrice : updated[index].sellingPrice,
     };
     setRows(updated);
   };
@@ -602,19 +610,51 @@ export const SalesEntryView: React.FC = () => {
                         {row.isDecant ? (
                           <>
                             <label className="text-[10px] text-indigo-700 font-bold block mb-0.5">Sold Amount ({pkgUnit}) *</label>
-                            <input
-                              type="number"
-                              min="0.1"
-                              step="0.1"
-                              placeholder={`e.g. 10 ${pkgUnit}`}
-                              value={row.decantMlAmount || ''}
-                              onChange={(e) => handleDecantMlChange(idx, e.target.value)}
-                              className={`w-full px-2 py-1.5 text-xs border rounded-lg text-center font-bold focus:outline-none ${
-                                isExceeding
-                                  ? 'border-rose-400 text-rose-700 bg-rose-50'
-                                  : 'border-indigo-300 text-indigo-900 bg-indigo-50/40'
-                              }`}
-                            />
+                            {(() => {
+                              const variants = prodObj?.decantConfig?.variants || [];
+                              if (variants.length > 0) {
+                                // Show preset dropdown
+                                return (
+                                  <select
+                                    value={row.decantMlAmount || ''}
+                                    onChange={(e) => handleDecantVariantSelect(idx, e.target.value)}
+                                    className={`w-full px-2 py-1.5 text-xs border rounded-lg font-bold focus:outline-none ${
+                                      isExceeding
+                                        ? 'border-rose-400 text-rose-700 bg-rose-50'
+                                        : 'border-indigo-300 text-indigo-900 bg-indigo-50/40'
+                                    }`}
+                                  >
+                                    <option value="">-- সাইজ --</option>
+                                    {variants.map((v) => (
+                                      <option key={v.id} value={v.mlAmount}>
+                                        {v.name} — Tk {v.sellingPrice}
+                                      </option>
+                                    ))}
+                                  </select>
+                                );
+                              }
+                              // Fallback: manual input
+                              return (
+                                <input
+                                  type="number"
+                                  min="0.1"
+                                  step="0.1"
+                                  placeholder={`e.g. 10 ${pkgUnit}`}
+                                  value={row.decantMlAmount || ''}
+                                  onChange={(e) => {
+                                    const ml = Math.max(0, parseFloat(e.target.value) || 0);
+                                    const updated = [...rows];
+                                    updated[idx] = { ...updated[idx], decantMlAmount: ml || undefined, decantVariantName: ml ? `${ml}ml` : 'Decant' };
+                                    setRows(updated);
+                                  }}
+                                  className={`w-full px-2 py-1.5 text-xs border rounded-lg text-center font-bold focus:outline-none ${
+                                    isExceeding
+                                      ? 'border-rose-400 text-rose-700 bg-rose-50'
+                                      : 'border-indigo-300 text-indigo-900 bg-indigo-50/40'
+                                  }`}
+                                />
+                              );
+                            })()}
                           </>
                         ) : (
                           <>
@@ -636,8 +676,12 @@ export const SalesEntryView: React.FC = () => {
 
                       {/* Selling Price */}
                       <div className="sm:col-span-2">
-                        <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">
-                          {row.isDecant ? 'Decant Price (Tk) *' : 'Price/Unit (Tk)'}
+                        <label className="text-[10px] font-bold block mb-0.5">
+                          {row.isDecant ? (
+                            <span className="text-purple-700">Decant Price (Tk)</span>
+                          ) : (
+                            <span className="text-slate-500">Price/Unit (Tk)</span>
+                          )}
                         </label>
                         <input
                           type="number"
@@ -646,8 +690,15 @@ export const SalesEntryView: React.FC = () => {
                           placeholder="00"
                           value={row.sellingPrice === 0 ? '' : row.sellingPrice}
                           onChange={(e) => handlePriceChange(idx, e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-right font-bold focus:outline-none"
+                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right font-bold focus:outline-none ${
+                            row.isDecant
+                              ? 'border-purple-300 bg-purple-50/40 text-purple-900 focus:ring-1 focus:ring-purple-400'
+                              : 'border-slate-200 text-slate-900'
+                          }`}
                         />
+                        {row.isDecant && row.decantMlAmount && (prodObj?.decantConfig?.variants?.find((v) => v.mlAmount === row.decantMlAmount)?.sellingPrice ?? 0) > 0 && (
+                          <p className="text-[9px] text-purple-500 mt-0.5 text-right">✓ প্রিসেট দাম</p>
+                        )}
                       </div>
 
                       {/* Line Total & Profit (masked for Manager) */}

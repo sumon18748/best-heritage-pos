@@ -27,11 +27,21 @@ import { exportReportToPdf } from '../utils/pdfExport';
 import { MainCategoryName, StockInTransaction } from '../types';
 import { getBangladeshTodayDateString, sortByNewestFirst, getBangladeshCurrentTimeString, formatSaleTime, formatTime12Hour } from '../utils/dateUtils';
 
+// Default decant sizes (ml). Super Admin can extend via product's decantConfig.
+const DEFAULT_DECANT_SIZES = [6, 10, 15, 30];
+
+interface DecantPriceEntry {
+  mlAmount: number;
+  price: number;
+}
+
 interface ItemRow {
   productId: string;
   quantity: number;
   purchasePrice: number;
   sellingPrice: number;
+  // Perfume only: decant prices per size
+  decantPrices?: DecantPriceEntry[];
 }
 
 export const StockInView: React.FC = () => {
@@ -110,14 +120,32 @@ export const StockInView: React.FC = () => {
   const handleCategoryChange = (newCat: MainCategoryName) => {
     setFormCategory(newCat);
     const catProds = products.filter((p) => p.categoryName === newCat && p.status === 'active');
+    const firstProd = catProds[0];
     setRows([
       {
-        productId: catProds[0]?.id || '',
+        productId: firstProd?.id || '',
         quantity: 10,
-        purchasePrice: catProds[0]?.purchasePrice || 0,
-        sellingPrice: catProds[0]?.sellingPrice || 0,
+        purchasePrice: firstProd?.purchasePrice || 0,
+        sellingPrice: firstProd?.sellingPrice || 0,
+        decantPrices: buildDecantPrices(firstProd),
       },
     ]);
+  };
+
+  // Helper: build initial decant prices for a product (perfume only)
+  const buildDecantPrices = (prod: ReturnType<typeof products.find>): DecantPriceEntry[] | undefined => {
+    if (!prod || prod.categoryName !== 'Perfume Products') return undefined;
+    const existingVariants = prod.decantConfig?.variants || [];
+    if (existingVariants.length > 0) {
+      return existingVariants.map((v) => ({
+        mlAmount: v.mlAmount,
+        price: v.sellingPrice || 0,
+      }));
+    }
+    return DEFAULT_DECANT_SIZES.map((ml) => ({
+      mlAmount: ml,
+      price: 0,
+    }));
   };
 
   const handleProductChange = (index: number, newProductId: string) => {
@@ -128,6 +156,7 @@ export const StockInView: React.FC = () => {
       productId: newProductId,
       purchasePrice: prod ? prod.purchasePrice : 0,
       sellingPrice: prod ? prod.sellingPrice : 0,
+      decantPrices: buildDecantPrices(prod),
     };
     setRows(updated);
   };
@@ -153,14 +182,24 @@ export const StockInView: React.FC = () => {
     setRows(updated);
   };
 
+  const handleDecantPriceChange = (rowIndex: number, ml: number, priceStr: string) => {
+    const price = Math.max(0, parseFloat(priceStr) || 0);
+    const updated = [...rows];
+    const dp = updated[rowIndex].decantPrices || DEFAULT_DECANT_SIZES.map((m) => ({ mlAmount: m, price: 0 }));
+    updated[rowIndex].decantPrices = dp.map((d) => d.mlAmount === ml ? { ...d, price } : d);
+    setRows(updated);
+  };
+
   const addRow = () => {
+    const firstProd = categoryProducts[0];
     setRows((prev) => [
       ...prev,
       {
-        productId: categoryProducts[0]?.id || '',
+        productId: firstProd?.id || '',
         quantity: 10,
-        purchasePrice: categoryProducts[0]?.purchasePrice || 0,
-        sellingPrice: categoryProducts[0]?.sellingPrice || 0,
+        purchasePrice: firstProd?.purchasePrice || 0,
+        sellingPrice: firstProd?.sellingPrice || 0,
+        decantPrices: buildDecantPrices(firstProd),
       },
     ]);
   };
@@ -181,12 +220,14 @@ export const StockInView: React.FC = () => {
     const cat = preselectedCategory || (activeCategoryTab !== 'all' ? (activeCategoryTab as MainCategoryName) : 'Cosmetic Products');
     setFormCategory(cat);
     const catProds = products.filter((p) => p.categoryName === cat && p.status === 'active');
+    const firstProd = catProds[0];
     setRows([
       {
-        productId: catProds[0]?.id || '',
+        productId: firstProd?.id || '',
         quantity: 10,
-        purchasePrice: catProds[0]?.purchasePrice || 0,
-        sellingPrice: catProds[0]?.sellingPrice || 0,
+        purchasePrice: firstProd?.purchasePrice || 0,
+        sellingPrice: firstProd?.sellingPrice || 0,
+        decantPrices: buildDecantPrices(firstProd),
       },
     ]);
     const defaultBranch = currentUser.role === 'manager' && currentUser.branchId
@@ -223,7 +264,13 @@ export const StockInView: React.FC = () => {
         supplierName: formSupplier.trim() || undefined,
         supplierInvoiceNo: formInvoiceRef.trim() || undefined,
         remarks: formRemarks.trim() || undefined,
-        items: rows,
+        items: rows.map((r) => ({
+          productId: r.productId,
+          quantity: r.quantity,
+          purchasePrice: r.purchasePrice,
+          sellingPrice: r.sellingPrice,
+          decantPrices: r.decantPrices,
+        })),
       });
 
       if (res.success) {
@@ -903,7 +950,8 @@ export const StockInView: React.FC = () => {
                   {rows.map((row, idx) => {
                     const rowCost = calculateStockInCost(row.quantity, row.purchasePrice);
                     return (
-                      <div key={idx} className="flex flex-col sm:flex-row items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200">
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex flex-col sm:flex-row items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200">
                         <div className="flex-1 w-full sm:w-auto">
                           <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">Product</label>
                           <select
@@ -994,6 +1042,39 @@ export const StockInView: React.FC = () => {
                             </button>
                           )}
                         </div>
+                      </div>
+
+                      {/* ── Decant Prices (Perfume only) ── */}
+                      {row.decantPrices && row.decantPrices.length > 0 && (
+                        <div className="mt-2 ml-2 p-3 bg-purple-50/60 border border-purple-200 rounded-xl">
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Flame className="w-3.5 h-3.5 text-purple-600" />
+                            <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wide">ডেকেন্ট বিক্রয় মূল্য সেটআপ</span>
+                            <span className="text-[10px] text-purple-500 ml-1">(প্রতিটি সাইজের আলাদা দাম)</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            {row.decantPrices.map((dp) => (
+                              <div key={dp.mlAmount}>
+                                <label className="text-[10px] font-bold text-purple-700 block mb-0.5 text-center">
+                                  {dp.mlAmount} ml (Tk)
+                                </label>
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  placeholder="0"
+                                  value={dp.price === 0 ? '' : dp.price}
+                                  onChange={(e) => handleDecantPriceChange(idx, dp.mlAmount, e.target.value)}
+                                  className="w-full px-2 py-1.5 text-xs border border-purple-300 bg-white rounded-lg text-center font-bold focus:outline-none focus:ring-2 focus:ring-purple-400 text-purple-900"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-purple-500 mt-1.5">
+                            💡 এই দামগুলো সেভ হলে ডেকেন্ট সেলে স্বয়ংক্রিয়ভাবে আসবে।
+                          </p>
+                        </div>
+                      )}
                       </div>
                     );
                   })}

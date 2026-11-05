@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, MainCategoryName } from '../types';
+import { Product, MainCategoryName, DecantVariant, DecantConfig } from '../types';
 import {
   Package,
   Plus,
@@ -76,6 +76,7 @@ export const ProductsView: React.FC = () => {
   const [formStatus, setFormStatus] = useState<'active' | 'inactive'>('active');
   const [formPackageSize, setFormPackageSize] = useState('');
   const [formPackageUnit, setFormPackageUnit] = useState('ml');
+  const [formDecantVariants, setFormDecantVariants] = useState<DecantVariant[]>([]);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -145,6 +146,12 @@ export const ProductsView: React.FC = () => {
     setFormStatus('active');
     setFormPackageSize(defaultCat?.name === 'Perfume Products' ? '100' : defaultCat?.name === 'Food Products' ? '500' : '');
     setFormPackageUnit(defaultCat?.name === 'Perfume Products' ? 'ml' : defaultCat?.name === 'Food Products' ? 'g' : 'ml');
+    setFormDecantVariants([6, 10, 15, 30].map((ml) => ({
+      id: `dv_${ml}ml`,
+      name: `${ml} ml`,
+      mlAmount: ml,
+      sellingPrice: 0,
+    })));
     setFormError('');
     setFormSuccess('');
 
@@ -166,6 +173,17 @@ export const ProductsView: React.FC = () => {
     const pSize = p.packageSize || p.bottleCapacityMl || p.decantConfig?.bottleCapacityMl;
     setFormPackageSize(pSize ? pSize.toString() : '');
     setFormPackageUnit(p.packageUnit || (p.categoryName === 'Perfume Products' ? 'ml' : p.categoryName === 'Food Products' ? 'g' : 'ml'));
+    const existingVariants = p.decantConfig?.variants || [];
+    if (p.categoryName === 'Perfume Products' && existingVariants.length === 0) {
+      setFormDecantVariants([6, 10, 15, 30].map((ml) => ({
+        id: `dv_${ml}ml`,
+        name: `${ml} ml`,
+        mlAmount: ml,
+        sellingPrice: 0,
+      })));
+    } else {
+      setFormDecantVariants(existingVariants);
+    }
     setFormError('');
     setFormSuccess('');
   };
@@ -222,6 +240,20 @@ export const ProductsView: React.FC = () => {
     const parsedPkgSize = formPackageSize ? parseFloat(formPackageSize) || undefined : undefined;
     const pkgUnit = formPackageUnit || (targetCategory?.name === 'Perfume Products' ? 'ml' : 'g');
 
+    const validVariants = (targetCategory?.name === 'Perfume Products')
+      ? formDecantVariants.filter((v) => v.mlAmount > 0).sort((a, b) => a.mlAmount - b.mlAmount)
+      : [];
+
+    const computedDecantConfig: DecantConfig | undefined = (targetCategory?.name === 'Perfume Products')
+      ? {
+          isDecantable: true,
+          bottleCapacityMl: parsedPkgSize || editingProduct?.bottleCapacityMl || 100,
+          wastageMl: editingProduct?.decantConfig?.wastageMl || 0,
+          usableMl: parsedPkgSize || editingProduct?.bottleCapacityMl || 100,
+          variants: validVariants,
+        }
+      : undefined;
+
     if (editingProduct) {
       const res = updateProduct(editingProduct.id, {
         name: formName.trim(),
@@ -238,7 +270,7 @@ export const ProductsView: React.FC = () => {
         packageSize: parsedPkgSize,
         packageUnit: pkgUnit,
         bottleCapacityMl: parsedPkgSize,
-        decantConfig: editingProduct.decantConfig,
+        decantConfig: computedDecantConfig || editingProduct.decantConfig,
       });
 
       if (res.success) {
@@ -264,7 +296,7 @@ export const ProductsView: React.FC = () => {
         packageSize: parsedPkgSize,
         packageUnit: pkgUnit,
         bottleCapacityMl: parsedPkgSize,
-        decantConfig: undefined,
+        decantConfig: computedDecantConfig,
       });
 
       if (res.success) {
@@ -885,6 +917,91 @@ export const ProductsView: React.FC = () => {
                     Total net volume or weight per sealed pack (e.g. Perfume 100ml, Food 500g). Used for inventory calculation and loose decant sales.
                   </p>
                 </div>
+
+                {/* Perfume Decant Variants Setup (Super Admin / Admin) */}
+                {categories.find((c) => c.id === formCategory)?.name === 'Perfume Products' && (
+                  <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <Flame className="w-4 h-4 text-purple-700" />
+                        <label className="text-xs font-bold text-purple-950">
+                          🧪 ডেকেন্ট ভ্যারিয়েন্ট ও বিক্রয় মূল্য (Decant Variants)
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newId = `dv_${Date.now()}`;
+                          setFormDecantVariants([
+                            ...formDecantVariants,
+                            { id: newId, name: '10 ml', mlAmount: 10, sellingPrice: 0 },
+                          ]);
+                        }}
+                        className="text-[10px] font-bold text-purple-700 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2.5 py-1 rounded-md flex items-center space-x-1 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ সাইজ যোগ করুন</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-purple-600">
+                      সুপার অ্যাডমিন: এখানে ডেকেন্ট সাইজ ও দাম এডিট, যোগ বা ডিলিট করতে পারেন। স্টক-ইন ও সেল এন্ট্রিতে এই সাইজগুলো স্বয়ংক্রিয়ভাবে ব্যবহৃত হবে।
+                    </p>
+                    <div className="space-y-1.5 mt-2">
+                      {formDecantVariants.map((v, vIdx) => (
+                        <div key={v.id || vIdx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-purple-200">
+                          <div className="w-24">
+                            <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">সাইজ (ml)</label>
+                            <input
+                              type="number"
+                              min="0.5"
+                              step="0.5"
+                              value={v.mlAmount || ''}
+                              onChange={(e) => {
+                                const ml = parseFloat(e.target.value) || 0;
+                                const updated = [...formDecantVariants];
+                                updated[vIdx] = { ...updated[vIdx], mlAmount: ml, name: `${ml} ml` };
+                                setFormDecantVariants(updated);
+                              }}
+                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded text-center font-bold text-purple-900 focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[9px] font-semibold text-slate-500 block mb-0.5">বিক্রয় মূল্য (Tk)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              placeholder="0"
+                              value={v.sellingPrice === 0 ? '' : v.sellingPrice}
+                              onChange={(e) => {
+                                const price = Math.max(0, parseFloat(e.target.value) || 0);
+                                const updated = [...formDecantVariants];
+                                updated[vIdx] = { ...updated[vIdx], sellingPrice: price };
+                                setFormDecantVariants(updated);
+                              }}
+                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded font-bold text-slate-800 focus:outline-none"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormDecantVariants(formDecantVariants.filter((_, i) => i !== vIdx));
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded mt-3 cursor-pointer"
+                            title="ভ্যারিয়েন্ট মুছুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {formDecantVariants.length === 0 && (
+                        <p className="text-[11px] text-slate-400 italic text-center py-2">
+                          কোনো ডেকেন্ট ভ্যারিয়েন্ট নেই। '+ সাইজ যোগ করুন' ক্লিক করুন।
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </form>
 
               {/* Modal Sticky Footer */}

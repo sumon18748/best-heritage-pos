@@ -145,7 +145,7 @@ interface AppContextType {
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
-    items: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number }[];
+    items: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number; decantPrices?: { mlAmount: number; price: number }[] }[];
   }) => { success: boolean; message: string; transaction?: StockInTransaction };
   updateStockIn: (stockInId: string, data: {
     date?: string;
@@ -1438,7 +1438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     supplierName?: string;
     supplierInvoiceNo?: string;
     remarks?: string;
-    items: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number }[];
+    items: { productId: string; quantity: number; purchasePrice: number; sellingPrice?: number; decantPrices?: { mlAmount: number; price: number }[] }[];
   }) => {
     if (currentUser.role === 'manager' && currentUser.branchId && data.branchId !== currentUser.branchId) {
       return { success: false, message: 'Security Violation: You cannot record Stock In for another branch.' };
@@ -1628,11 +1628,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!inItem) return p;
         const newSellingPrice = inItem.sellingPrice !== undefined && inItem.sellingPrice > 0 ? inItem.sellingPrice : p.sellingPrice;
         const newPurchasePrice = inItem.purchasePrice > 0 ? inItem.purchasePrice : p.purchasePrice;
-        if (newSellingPrice === p.sellingPrice && newPurchasePrice === p.purchasePrice) return p;
+
+        // Build decant variants from decantPrices if provided (Perfume products)
+        let updatedDecantConfig = p.decantConfig;
+        if (inItem.decantPrices && inItem.decantPrices.length > 0 && p.categoryName === 'Perfume Products') {
+          const mergedVariants = [...(p.decantConfig?.variants || [])];
+          for (const dp of inItem.decantPrices) {
+            if (dp.price <= 0) continue;
+            const exIdx = mergedVariants.findIndex((v) => v.mlAmount === dp.mlAmount);
+            if (exIdx >= 0) {
+              mergedVariants[exIdx] = { ...mergedVariants[exIdx], sellingPrice: dp.price };
+            } else {
+              mergedVariants.push({
+                id: `dv_${dp.mlAmount}ml`,
+                name: `${dp.mlAmount} ml`,
+                mlAmount: dp.mlAmount,
+                sellingPrice: dp.price,
+              });
+            }
+          }
+          mergedVariants.sort((a, b) => a.mlAmount - b.mlAmount);
+
+          updatedDecantConfig = {
+            isDecantable: true,
+            bottleCapacityMl: p.bottleCapacityMl || p.decantConfig?.bottleCapacityMl || 100,
+            wastageMl: p.decantConfig?.wastageMl || 0,
+            usableMl: p.decantConfig?.usableMl || (p.bottleCapacityMl || 100),
+            variants: mergedVariants,
+          };
+        }
+
+        if (newSellingPrice === p.sellingPrice && newPurchasePrice === p.purchasePrice && updatedDecantConfig === p.decantConfig) return p;
         const updated = {
           ...p,
           sellingPrice: newSellingPrice,
           purchasePrice: newPurchasePrice,
+          decantConfig: updatedDecantConfig,
           updatedAt: getBangladeshTodayDateString(),
         };
         syncProductUpsert(updated);
