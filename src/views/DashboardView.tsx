@@ -397,25 +397,25 @@ export const DashboardView: React.FC = () => {
             {/* 4. Total Cash */}
             <div
               onClick={() => setActiveTab('expenses')}
-              className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition-all cursor-pointer group relative overflow-hidden"
+              className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-slate-400 transition-all cursor-pointer group relative overflow-hidden"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Liquidity</span>
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Liquidity</span>
                   <h3 className="text-base font-bold text-slate-900 mt-0.5">Total Cash</h3>
                   <p className="text-xs text-slate-400">Physical + Bank Total</p>
                 </div>
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-200">
+                <div className="p-2.5 bg-slate-100 text-slate-900 rounded-xl border border-slate-300 group-hover:bg-slate-900 group-hover:text-white transition-colors">
                   <DollarSign className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100">
-                <p className="text-2xl font-bold text-blue-700 font-mono tracking-tight">
+                <p className="text-2xl font-bold text-slate-900 font-mono tracking-tight">
                   {formatCurrencyBDT(cashBankBalances.physicalCash + cashBankBalances.bankBalance)}
                 </p>
                 <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
                   <span>Physical + Bank Total</span>
-                  <span className="text-slate-500 font-medium">Reconciled</span>
+                  <span className="text-slate-600 font-semibold">Reconciled</span>
                 </div>
               </div>
             </div>
