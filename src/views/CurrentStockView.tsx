@@ -17,6 +17,7 @@ import {
   calculateStockAlertStatus,
   formatCurrencyBDT,
   isStockableBranch,
+  normalizeDecantStock,
 } from '../utils/stockCalculations';
 import { exportReportToExcel } from '../utils/excelExport';
 import { exportReportToPdf } from '../utils/pdfExport';
@@ -110,22 +111,37 @@ export const CurrentStockView: React.FC = () => {
       const stockOut = txStockOut > 0 ? txStockOut : (Number(stock.stockOut) || 0);
 
       // Sum all Sold items matching this product code/id for this branch
-      const txSold = (sales || [])
+      // Non-decant items count directly in bottles/units
+      const nonDecantSoldUnits = (sales || [])
         .filter((s) => s.branchId === stock.branchId && s.status === 'completed')
         .reduce((sum, s) => {
           const itemsSum = (s.items || [])
-            .filter((it) => it.productId === prodId || (prodCode && it.sku === prodCode))
+            .filter((it) => (it.productId === prodId || (prodCode && it.sku === prodCode)) && !it.isDecant)
             .reduce((itSum, it) => itSum + (Number(it.quantity) || 0), 0);
           return sum + itemsSum;
         }, 0);
 
-      const quantitySold = txSold > 0 ? txSold : (Number(stock.quantitySold) || 0);
+      // Decant items: calculate total ml sold, then determine whole bottles consumed
+      const capacity = product?.bottleCapacityMl || product?.decantConfig?.bottleCapacityMl || product?.packageSize || 100;
+      const decantTotalMl = (sales || [])
+        .filter((s) => s.branchId === stock.branchId && s.status === 'completed')
+        .reduce((sum, s) => {
+          const itemsSum = (s.items || [])
+            .filter((it) => (it.productId === prodId || (prodCode && it.sku === prodCode)) && it.isDecant)
+            .reduce((itSum, it) => itSum + ((Number(it.decantMlAmount) || 0) * (Number(it.quantity) || 1)), 0);
+          return sum + itemsSum;
+        }, 0);
+
+      const decantBottlesConsumed = Math.floor(decantTotalMl / capacity);
+      const txSold = nonDecantSoldUnits + decantBottlesConsumed;
+
+      const quantitySold = (txSold > 0 || (nonDecantSoldUnits === 0 && decantTotalMl > 0)) ? txSold : (Number(stock.quantitySold) || 0);
 
       const openingStock = Number(stock.openingStock) || 0;
 
       // Golden Business Rule Formula:
       // Current Stock = Opening Stock + Stock In - Stock Out - Sold Qty
-      const currentStock = calculateCurrentStock({
+      const rawCurrentStock = calculateCurrentStock({
         openingStock,
         stockIn,
         stockOut,
@@ -133,6 +149,16 @@ export const CurrentStockView: React.FC = () => {
         salesReturn: stock.salesReturn,
         purchaseReturn: stock.purchaseReturn,
       });
+
+      // Decant normalization: full bottle capacity must NEVER remain as open bottle
+      const norm = normalizeDecantStock({
+        currentStock: rawCurrentStock,
+        openBottleMl: Number(stock.openBottleMlRemaining) || 0,
+        bottleCapacityMl: capacity,
+      });
+
+      const currentStock = norm.currentStock;
+      const openBottleMlRemaining = norm.openBottleMl;
 
       const batches = getProductBatchesForBranch(stock.branchId, stock.productId);
       const activeBatches = batches.filter((b) => b.remainingQuantity > 0);
@@ -174,7 +200,7 @@ export const CurrentStockView: React.FC = () => {
         stockValue,
         alertStatus: status,
         decantConfig: product?.decantConfig,
-        openBottleMlRemaining: Number(stock.openBottleMlRemaining) || 0,
+        openBottleMlRemaining,
         packageSize: product?.packageSize || product?.bottleCapacityMl || product?.decantConfig?.bottleCapacityMl,
         packageUnit: product?.packageUnit || (product?.categoryName === 'Perfume Products' ? 'ml' : 'g'),
         unitOfMeasure: product?.unitOfMeasure || 'units',

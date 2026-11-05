@@ -49,6 +49,7 @@ import {
   calculateDecantItemCost,
   calculateDecantStockDeduction,
   calculateDecantCancelRestore,
+  normalizeDecantStock,
   getProductBatches,
   allocateSaleFromLowestCostBatches,
   AvailableBatch,
@@ -657,20 +658,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   return sum + iSum;
                 }, 0);
 
-              const txSold = loadedSales
+              // Non-decant items count directly in bottles/units sold
+              const nonDecantSoldUnits = loadedSales
                 .filter((sa) => sa.branchId === s.branchId && sa.status === 'completed')
                 .reduce((sum, sa) => {
                   const iSum = (sa.items || [])
-                    .filter((it) => it.productId === s.productId)
+                    .filter((it) => it.productId === s.productId && !it.isDecant)
                     .reduce((sub, it) => sub + (Number(it.quantity) || 0), 0);
                   return sum + iSum;
                 }, 0);
 
+              // Decant items: calculate total ml sold, then determine whole bottles consumed
+              const matchingProd = (data.products || []).find((p: any) => p.id === s.productId);
+              const capacity = matchingProd?.bottleCapacityMl || matchingProd?.decantConfig?.bottleCapacityMl || 100;
+              const decantTotalMl = loadedSales
+                .filter((sa) => sa.branchId === s.branchId && sa.status === 'completed')
+                .reduce((sum, sa) => {
+                  const iSum = (sa.items || [])
+                    .filter((it) => it.productId === s.productId && it.isDecant)
+                    .reduce((sub, it) => sub + ((Number(it.decantMlAmount) || 0) * (Number(it.quantity) || 1)), 0);
+                  return sum + iSum;
+                }, 0);
+
+              const decantBottlesConsumed = Math.floor(decantTotalMl / capacity);
+              const txSold = nonDecantSoldUnits + decantBottlesConsumed;
+
               const effectiveIn = txStockIn > 0 ? txStockIn : (Number(s.stockIn) || 0);
               const effectiveOut = txStockOut > 0 ? txStockOut : (Number(s.stockOut) || 0);
-              const effectiveSold = txSold > 0 ? txSold : (Number(s.quantitySold) || 0);
+              const effectiveSold = (txSold > 0 || (nonDecantSoldUnits === 0 && decantTotalMl > 0)) ? txSold : (Number(s.quantitySold) || 0);
 
-              const currentStock = calculateCurrentStock({
+              const rawCurrentStock = calculateCurrentStock({
                 openingStock: s.openingStock,
                 stockIn: effectiveIn,
                 stockOut: effectiveOut,
@@ -679,12 +696,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 purchaseReturn: s.purchaseReturn,
               });
 
+              // Decant normalization: full bottle capacity must NEVER remain as open bottle
+              const norm = normalizeDecantStock({
+                currentStock: rawCurrentStock,
+                openBottleMl: Number(s.openBottleMlRemaining) || 0,
+                bottleCapacityMl: capacity,
+              });
+
               return {
                 ...s,
                 stockIn: effectiveIn,
                 stockOut: effectiveOut,
                 quantitySold: effectiveSold,
-                currentStock,
+                currentStock: norm.currentStock,
+                openBottleMlRemaining: norm.openBottleMl,
               };
             });
 
@@ -2501,17 +2526,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (sale.status === 'cancelled') return { success: false, message: 'Sale is already cancelled.' };
 
     const movementsToAdd: StockMovement[] = [];
-    const changedStocks: BranchProductStock[] = [];
+    const stockMap = new Map<string, BranchProductStock>();
+
+    const getTargetStock = (branchId: string, productId: string): BranchProductStock | null => {
+      const key = `${branchId}_${productId}`;
+      if (stockMap.has(key)) return stockMap.get(key)!;
+      const found = branchStocks.find((s) => s.branchId === branchId && s.productId === productId);
+      if (found) {
+        const copy: BranchProductStock = { ...found };
+        stockMap.set(key, copy);
+        return copy;
+      }
+      return null;
+    };
 
     // Precalculate synchronously so changedStocks is immediately populated for Supabase sync
     for (const item of sale.items) {
-      const current = branchStocks.find((s) => s.branchId === sale.branchId && s.productId === item.productId);
+      const current = getTargetStock(sale.branchId, item.productId);
       const prod = products.find((p) => p.id === item.productId);
 
       if (current) {
         if (item.isDecant && item.decantMlAmount) {
           const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
-          const mlRestored = item.decantMlAmount * item.quantity;
+          const mlRestored = (Number(item.decantMlAmount) || 0) * (Number(item.quantity) || 1);
 
           const restoreRes = calculateDecantCancelRestore({
             currentStock: current.currentStock,
@@ -2521,17 +2558,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             mlRestored,
           });
 
-          const updatedEntry: BranchProductStock = {
-            ...current,
+          const norm = normalizeDecantStock({
             currentStock: restoreRes.newCurrentStock,
-            openBottleMlRemaining: restoreRes.newOpenBottleMl,
-            quantitySold: Math.max(0, current.quantitySold - restoreRes.bottlesIncremented),
-            lastUpdated: new Date().toLocaleString(),
-          };
-          changedStocks.push(updatedEntry);
+            openBottleMl: restoreRes.newOpenBottleMl,
+            bottleCapacityMl: capacity,
+          });
+
+          const totalBottlesRestored = restoreRes.bottlesIncremented + norm.bottlesIncremented;
+
+          current.currentStock = Math.max(0, norm.currentStock);
+          current.openBottleMlRemaining = Math.max(0, norm.openBottleMl);
+          current.quantitySold = Math.max(0, (current.quantitySold || 0) - totalBottlesRestored);
+          current.lastUpdated = new Date().toLocaleString();
 
           movementsToAdd.push({
-            id: `mov_cancel_${Date.now()}_${item.productId}`,
+            id: `mov_cancel_${Date.now()}_${item.productId}_${Math.random().toString(36).slice(2, 6)}`,
             timestamp: new Date().toLocaleString(),
             date: getBangladeshTodayDateString(),
             branchId: sale.branchId,
@@ -2540,25 +2581,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             productName: item.productName,
             sku: item.sku,
             type: 'sale_cancellation',
-            quantityChange: restoreRes.bottlesIncremented,
-            balanceAfter: restoreRes.newCurrentStock,
+            quantityChange: totalBottlesRestored,
+            balanceAfter: current.currentStock,
             referenceNo: sale.invoiceNo,
-            notes: `Void Decant Sale: Restored ${mlRestored}ml (${restoreRes.bottlesIncremented} bottle restored). Reason: ${reason}`,
+            notes: `Void Decant Sale: Restored ${mlRestored}ml (+${totalBottlesRestored} bottle restored). Open bottle: ${current.openBottleMlRemaining}ml. Reason: ${reason}`,
             userId: currentUser.id,
             userName: currentUser.name,
           });
         } else {
-          const restoredCurrentStock = current.currentStock + item.quantity;
-          const updatedEntry: BranchProductStock = {
-            ...current,
-            quantitySold: Math.max(0, current.quantitySold - item.quantity),
-            currentStock: restoredCurrentStock,
-            lastUpdated: new Date().toLocaleString(),
-          };
-          changedStocks.push(updatedEntry);
+          const restoredCurrentStock = Math.max(0, (current.currentStock || 0) + item.quantity);
+          current.currentStock = restoredCurrentStock;
+          current.quantitySold = Math.max(0, (current.quantitySold || 0) - item.quantity);
+          current.lastUpdated = new Date().toLocaleString();
 
           movementsToAdd.push({
-            id: `mov_cancel_${Date.now()}_${item.productId}`,
+            id: `mov_cancel_${Date.now()}_${item.productId}_${Math.random().toString(36).slice(2, 6)}`,
             timestamp: new Date().toLocaleString(),
             date: getBangladeshTodayDateString(),
             branchId: sale.branchId,
@@ -2577,6 +2614,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     }
+
+    const changedStocks = Array.from(stockMap.values());
 
     setBranchStocks((prev) =>
       prev.map((s) => {
@@ -2770,28 +2809,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Invoice "${sale.invoiceNo}" updated successfully.` };
   };
 
-  // Permanently Delete Sale Invoice (Super Admin Only: Auto Stock-In / Restore)
+  // Permanently Delete Sale Invoice (Super Admin & Authorized: Auto Stock-In / Restore)
   const deleteSale = (saleId: string) => {
-    if (currentUser.role !== 'super_admin') {
-      return { success: false, message: 'Unauthorized: Only Super Admin can permanently delete sale invoices.' };
+    if (currentUser.role !== 'super_admin' && !canDelete) {
+      return { success: false, message: 'Unauthorized: You do not have permission to delete sale invoices.' };
     }
 
     const sale = sales.find((s) => s.id === saleId);
     if (!sale) return { success: false, message: 'Sale invoice not found.' };
 
     const movementsToAdd: StockMovement[] = [];
-    const changedStocks: BranchProductStock[] = [];
+    const stockMap = new Map<string, BranchProductStock>();
+
+    const getTargetStock = (branchId: string, productId: string): BranchProductStock | null => {
+      const key = `${branchId}_${productId}`;
+      if (stockMap.has(key)) return stockMap.get(key)!;
+      const found = branchStocks.find((s) => s.branchId === branchId && s.productId === productId);
+      if (found) {
+        const copy: BranchProductStock = { ...found };
+        stockMap.set(key, copy);
+        return copy;
+      }
+      return null;
+    };
 
     // If sale was completed, auto stock-in / restore stock back to branch inventory
     if (sale.status === 'completed') {
       for (const item of sale.items) {
-        const current = branchStocks.find((s) => s.branchId === sale.branchId && s.productId === item.productId);
+        const current = getTargetStock(sale.branchId, item.productId);
         const prod = products.find((p) => p.id === item.productId);
 
         if (current) {
           if (item.isDecant && item.decantMlAmount) {
             const capacity = prod?.bottleCapacityMl || prod?.decantConfig?.bottleCapacityMl || 100;
-            const mlRestored = item.decantMlAmount * item.quantity;
+            const mlRestored = (Number(item.decantMlAmount) || 0) * (Number(item.quantity) || 1);
 
             const restoreRes = calculateDecantCancelRestore({
               currentStock: current.currentStock,
@@ -2801,17 +2852,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               mlRestored,
             });
 
-            const updatedEntry: BranchProductStock = {
-              ...current,
+            const norm = normalizeDecantStock({
               currentStock: restoreRes.newCurrentStock,
-              openBottleMlRemaining: restoreRes.newOpenBottleMl,
-              quantitySold: Math.max(0, current.quantitySold - restoreRes.bottlesIncremented),
-              lastUpdated: new Date().toLocaleString(),
-            };
-            changedStocks.push(updatedEntry);
+              openBottleMl: restoreRes.newOpenBottleMl,
+              bottleCapacityMl: capacity,
+            });
+
+            const totalBottlesRestored = restoreRes.bottlesIncremented + norm.bottlesIncremented;
+
+            current.currentStock = Math.max(0, norm.currentStock);
+            current.openBottleMlRemaining = Math.max(0, norm.openBottleMl);
+            current.quantitySold = Math.max(0, (current.quantitySold || 0) - totalBottlesRestored);
+            current.lastUpdated = new Date().toLocaleString();
 
             movementsToAdd.push({
-              id: `mov_del_${Date.now()}_${item.productId}`,
+              id: `mov_del_${Date.now()}_${item.productId}_${Math.random().toString(36).slice(2, 6)}`,
               timestamp: new Date().toLocaleString(),
               date: getBangladeshTodayDateString(),
               branchId: sale.branchId,
@@ -2820,25 +2875,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               productName: item.productName,
               sku: item.sku,
               type: 'stock_in',
-              quantityChange: restoreRes.bottlesIncremented,
-              balanceAfter: restoreRes.newCurrentStock,
+              quantityChange: totalBottlesRestored,
+              balanceAfter: current.currentStock,
               referenceNo: sale.invoiceNo,
-              notes: `Super Admin Invoice Deletion: Auto stock restored (Stock-In ${mlRestored}ml, ${restoreRes.bottlesIncremented} bottle).`,
+              notes: `Invoice Deletion (#${sale.invoiceNo}): Decant stock restored (${mlRestored}ml, +${totalBottlesRestored} sealed bottle). Open bottle: ${current.openBottleMlRemaining}ml.`,
               userId: currentUser.id,
               userName: currentUser.name,
             });
           } else {
-            const restoredCurrentStock = current.currentStock + item.quantity;
-            const updatedEntry: BranchProductStock = {
-              ...current,
-              quantitySold: Math.max(0, current.quantitySold - item.quantity),
-              currentStock: restoredCurrentStock,
-              lastUpdated: new Date().toLocaleString(),
-            };
-            changedStocks.push(updatedEntry);
+            const restoredCurrentStock = Math.max(0, (current.currentStock || 0) + item.quantity);
+            current.currentStock = restoredCurrentStock;
+            current.quantitySold = Math.max(0, (current.quantitySold || 0) - item.quantity);
+            current.lastUpdated = new Date().toLocaleString();
 
             movementsToAdd.push({
-              id: `mov_del_${Date.now()}_${item.productId}`,
+              id: `mov_del_${Date.now()}_${item.productId}_${Math.random().toString(36).slice(2, 6)}`,
               timestamp: new Date().toLocaleString(),
               date: getBangladeshTodayDateString(),
               branchId: sale.branchId,
@@ -2850,7 +2901,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               quantityChange: item.quantity,
               balanceAfter: restoredCurrentStock,
               referenceNo: sale.invoiceNo,
-              notes: `Super Admin Invoice Deletion: Auto stock restored (Stock-In +${item.quantity} units).`,
+              notes: `Invoice Deletion (#${sale.invoiceNo}): Auto stock restored (Stock-In +${item.quantity} units).`,
               userId: currentUser.id,
               userName: currentUser.name,
             });
@@ -2858,6 +2909,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     }
+
+    const changedStocks = Array.from(stockMap.values());
 
     if (changedStocks.length > 0) {
       setBranchStocks((prev) =>

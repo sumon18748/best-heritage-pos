@@ -659,22 +659,24 @@ export const SalesHistoryView: React.FC = () => {
                         </button>
                       )}
 
-                      {/* Edit & Permanent Delete — Super Admin Only */}
-                      {isSuperAdmin && (
+                      {/* Edit & Permanent Delete */}
+                      {(isSuperAdmin || canDelete) && (
                         <>
-                          <button
-                            onClick={() => openEditSaleModal(sale)}
-                            title="Edit Invoice (Super Admin Only)"
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => openEditSaleModal(sale)}
+                              title="Edit Invoice (Super Admin Only)"
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setSaleToDelete(sale);
                               setDeleteFeedback(null);
                             }}
-                            title="Permanently Delete Invoice (Super Admin Only)"
+                            title="Permanently Delete Invoice (Restores Stock)"
                             className="p-1.5 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />

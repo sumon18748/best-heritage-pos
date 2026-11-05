@@ -14,6 +14,7 @@ import {
   calculateDecantItemCost,
   calculateDecantStockDeduction,
   calculateDecantCancelRestore,
+  normalizeDecantStock,
   getNextBranchCode,
   normalizeBranchList,
   isStockableBranch,
@@ -255,6 +256,38 @@ test('calculateDecantCancelRestore restores ml and reverses bottle decrements cl
   assert.equal(res2.newCurrentStock, 4);
   assert.equal(res2.newOpenBottleMl, 10);
   assert.equal(res2.bottlesIncremented, 1);
+
+  // Exact 100ml restore with 0 wastage: MUST NOT remain as open 100ml, must convert to 1 whole bottle
+  const res3 = calculateDecantCancelRestore({
+    currentStock: 0,
+    currentOpenBottleMl: 0,
+    bottleCapacityMl: 100,
+    wastageMl: 0,
+    mlRestored: 100,
+  });
+  assert.equal(res3.newCurrentStock, 1, '100ml must convert to 1 whole bottle in stock');
+  assert.equal(res3.newOpenBottleMl, 0, 'Open bottle must be 0ml, NOT 100ml');
+  assert.equal(res3.bottlesIncremented, 1);
+});
+
+test('normalizeDecantStock converts any full capacity multiples into sealed stock bottles', () => {
+  // If openBottle is 100ml on a 100ml perfume, it converts to +1 stock and 0ml open
+  const norm1 = normalizeDecantStock({ currentStock: 0, openBottleMl: 100, bottleCapacityMl: 100 });
+  assert.equal(norm1.currentStock, 1);
+  assert.equal(norm1.openBottleMl, 0);
+  assert.equal(norm1.bottlesIncremented, 1);
+
+  // If openBottle is 230ml, it converts 200ml into 2 bottles and leaves 30ml open
+  const norm2 = normalizeDecantStock({ currentStock: 1, openBottleMl: 230, bottleCapacityMl: 100 });
+  assert.equal(norm2.currentStock, 3);
+  assert.equal(norm2.openBottleMl, 30);
+  assert.equal(norm2.bottlesIncremented, 2);
+
+  // Only partial/broken bottle (e.g. 45ml) stays open
+  const norm3 = normalizeDecantStock({ currentStock: 2, openBottleMl: 45, bottleCapacityMl: 100 });
+  assert.equal(norm3.currentStock, 2);
+  assert.equal(norm3.openBottleMl, 45);
+  assert.equal(norm3.bottlesIncremented, 0);
 });
 
 test('login authentication supports 5-digit user IDs: 99999, 00001, 00002 with password 123456', async () => {

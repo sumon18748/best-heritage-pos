@@ -21,7 +21,9 @@ export function calculateCurrentStock(params: StockCalculationParams): number {
   const soldQty = Number(params.quantitySold) || 0;
   const pReturn = Number(params.purchaseReturn) || 0;
 
-  return opening + inQty + sReturn - outQty - soldQty - pReturn;
+  const result = opening + inQty + sReturn - outQty - soldQty - pReturn;
+  // Stock can never be negative in physical inventory
+  return Math.max(0, result);
 }
 
 export type StockAlertStatus = 'out_of_stock' | 'low_stock' | 'healthy';
@@ -508,7 +510,8 @@ export function calculateDecantStockDeduction(params: DecantDeductionParams): De
 }
 
 /**
- * Restores decanted ml when an invoice is cancelled / voided.
+ * Restores decanted ml when an invoice is cancelled / voided or deleted.
+ * A full bottle (e.g. 100ml) must never remain open: >= usableMl reconstitutes into whole sealed stock units.
  */
 export function calculateDecantCancelRestore(params: {
   currentStock: number;
@@ -522,14 +525,43 @@ export function calculateDecantCancelRestore(params: {
   let openMl = (params.currentOpenBottleMl || 0) + mlRestored;
   let bottlesIncremented = 0;
 
-  while (openMl > usableMl) {
+  // Full bottle capacity MUST NOT remain open: >= usableMl reconstitutes whole bottles
+  while (openMl >= usableMl) {
     bottlesIncremented += 1;
     openMl -= usableMl;
   }
 
   return {
-    newCurrentStock: currentStock + bottlesIncremented,
-    newOpenBottleMl: openMl,
+    newCurrentStock: Math.max(0, currentStock + bottlesIncremented),
+    newOpenBottleMl: Math.max(0, openMl),
+    bottlesIncremented,
+  };
+}
+
+/**
+ * Normalizes decant inventory so that full bottle volumes are converted into whole sealed stock units.
+ * A bottle can only be recorded as "open" if it is partially consumed (0 < openBottleMl < capacity).
+ * A full bottle (e.g. 100 ml out of 100 ml) must never remain open; it becomes +1 in currentStock.
+ */
+export function normalizeDecantStock(params: {
+  currentStock: number;
+  openBottleMl?: number;
+  bottleCapacityMl?: number;
+}): { currentStock: number; openBottleMl: number; bottlesIncremented: number } {
+  const capacity = Math.max(1, params.bottleCapacityMl || 100);
+  let stock = Math.max(0, params.currentStock || 0);
+  let open = Math.max(0, params.openBottleMl || 0);
+  let bottlesIncremented = 0;
+
+  while (open >= capacity) {
+    bottlesIncremented += 1;
+    stock += 1;
+    open -= capacity;
+  }
+
+  return {
+    currentStock: Math.max(0, stock),
+    openBottleMl: Math.max(0, open),
     bottlesIncremented,
   };
 }
