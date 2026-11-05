@@ -109,37 +109,15 @@ export const StockInView: React.FC = () => {
     });
   }, [products, formCategory]);
 
-  const [rows, setRows] = useState<ItemRow[]>([
-    {
-      productId: '',
-      quantity: 10,
-      purchasePrice: 0,
-      sellingPrice: 0,
-    },
-  ]);
+  const [rows, setRows] = useState<ItemRow[]>([]);
 
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // When form category changes, reset product row
+  // When form category changes
   const handleCategoryChange = (newCat: MainCategoryName | 'all') => {
     setFormCategory(newCat);
-    const catProds = products.filter((p) => {
-      if (p.status === 'inactive') return false;
-      if (newCat === 'all') return true;
-      return p.categoryName === newCat;
-    });
-    const firstProd = catProds[0];
-    setRows([
-      {
-        productId: firstProd?.id || '',
-        quantity: 10,
-        purchasePrice: firstProd?.purchasePrice || 0,
-        sellingPrice: firstProd?.sellingPrice || 0,
-        decantPrices: buildDecantPrices(firstProd),
-      },
-    ]);
   };
 
   // Helper: build initial decant prices for a product (perfume only)
@@ -215,9 +193,7 @@ export const StockInView: React.FC = () => {
   };
 
   const removeRow = (index: number) => {
-    if (rows.length > 1) {
-      setRows((prev) => prev.filter((_, i) => i !== index));
-    }
+    setRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const totalCost = rows.reduce(
@@ -229,24 +205,24 @@ export const StockInView: React.FC = () => {
   const openNewStockIn = (preselectedCategory?: MainCategoryName | 'all', preselectedProductId?: string) => {
     const cat = preselectedCategory || (activeCategoryTab !== 'all' ? (activeCategoryTab as MainCategoryName) : 'all');
     setFormCategory(cat);
-    const catProds = products.filter((p) => {
-      if (p.status === 'inactive') return false;
-      if (cat === 'all') return true;
-      return p.categoryName === cat;
-    });
-    const targetProd = preselectedProductId
-      ? products.find((p) => p.id === preselectedProductId) || catProds[0]
-      : catProds[0];
-
-    setRows([
-      {
-        productId: targetProd?.id || '',
-        quantity: 10,
-        purchasePrice: targetProd?.purchasePrice || 0,
-        sellingPrice: targetProd?.sellingPrice || 0,
-        decantPrices: buildDecantPrices(targetProd),
-      },
-    ]);
+    if (preselectedProductId) {
+      const targetProd = products.find((p) => p.id === preselectedProductId);
+      if (targetProd) {
+        setRows([
+          {
+            productId: targetProd.id,
+            quantity: 10,
+            purchasePrice: targetProd.purchasePrice || 0,
+            sellingPrice: targetProd.sellingPrice || 0,
+            decantPrices: buildDecantPrices(targetProd),
+          },
+        ]);
+      } else {
+        setRows([]);
+      }
+    } else {
+      setRows([]);
+    }
     const defaultBranch = currentUser.role === 'manager' && currentUser.branchId
       ? currentUser.branchId
       : (stockableBranches.find((b) => b.id === selectedBranchId)?.id || stockableBranches[0]?.id || '');
@@ -275,6 +251,11 @@ export const StockInView: React.FC = () => {
 
     if (!formBranchId) {
       setFormError('Please select a destination branch.');
+      return;
+    }
+
+    if (rows.length === 0) {
+      setFormError('দয়া করে "+ Add Item" বাটনে ক্লিক করে অন্তত একটি প্রোডাক্ট যোগ করুন।');
       return;
     }
 
@@ -1020,6 +1001,16 @@ export const StockInView: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
+                  {rows.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+                      <Package className="w-8 h-8 mb-2 opacity-30 text-slate-500" />
+                      <p className="text-xs font-semibold text-slate-600">কোনো আইটেম যোগ করা হয়নি</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        আইটেম যোগ করতে উপরের <button type="button" onClick={addRow} className="font-bold text-blue-600 underline hover:text-blue-700 cursor-pointer">+ Add Item</button> বাটনে ক্লিক করুন।
+                      </p>
+                    </div>
+                  )}
+
                   {rows.map((row, idx) => {
                     const rowCost = calculateStockInCost(row.quantity, row.purchasePrice);
                     return (
@@ -1108,15 +1099,14 @@ export const StockInView: React.FC = () => {
                         </div>
 
                         <div className="pt-4 sm:pt-0">
-                          {rows.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeRow(idx)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeRow(idx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
+                            title="আইটেম মুছুন"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
