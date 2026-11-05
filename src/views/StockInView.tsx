@@ -1012,7 +1012,9 @@ export const StockInView: React.FC = () => {
                         </div>
 
                         <div className="w-28">
-                          <label className="text-[10px] text-emerald-700 font-bold block mb-0.5">Selling Price (Tk) *</label>
+                          <label className="text-[10px] text-emerald-700 font-bold block mb-0.5">
+                            {formCategory === 'Perfume Products' ? 'Full Bottle Selling (Tk) *' : 'Selling Price (Tk) *'}
+                          </label>
                           <input
                             type="number"
                             step="0.01"
@@ -1050,7 +1052,7 @@ export const StockInView: React.FC = () => {
                           <div className="flex items-center gap-1.5 mb-2">
                             <Flame className="w-3.5 h-3.5 text-purple-600" />
                             <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wide">ডেকেন্ট বিক্রয় মূল্য সেটআপ</span>
-                            <span className="text-[10px] text-purple-500 ml-1">(প্রতিটি সাইজের আলাদা দাম)</span>
+                            <span className="text-[10px] text-purple-600 font-semibold ml-1">(ভেঙে বিক্রির ক্ষেত্রে প্রতিটি সাইজের লাভজনক বিক্রয় মূল্য)</span>
                           </div>
                           <div className="grid grid-cols-4 gap-2">
                             {row.decantPrices.map((dp) => (
@@ -1070,8 +1072,8 @@ export const StockInView: React.FC = () => {
                               </div>
                             ))}
                           </div>
-                          <p className="text-[10px] text-purple-500 mt-1.5">
-                            💡 এই দামগুলো সেভ হলে ডেকেন্ট সেলে স্বয়ংক্রিয়ভাবে আসবে।
+                          <p className="text-[10px] text-purple-600 mt-1.5">
+                            💡 ফুল বোতলের দামের সাথে ডেকেন্টের দামের সম্পর্ক নেই—ভেঙে বিক্রি করলে বেশি লাভ রাখার জন্য প্রতিটি সাইজের আলাদা প্রিমিয়াম বিক্রয় মূল্য এখানে দিন। সেলের সময় এই দামেই বিক্রি ও লাভ হিসাব হবে।
                           </p>
                         </div>
                       )}
